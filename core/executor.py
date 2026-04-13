@@ -24,6 +24,11 @@ logger = logging.getLogger("atomicloop.executor")
 
 DEFAULT_TIMEOUT = 30
 
+# Compiled once at import time — identifier restricted to [A-Za-z0-9_]+ to
+# prevent polynomial backtracking on crafted placeholder strings (ReDoS).
+_PLACEHOLDER_RE = re.compile(r"#\{([A-Za-z0-9_]+)\}")
+_MAX_SUBST_LEN = 500
+
 
 @dataclass
 class ExecutionResult:
@@ -42,10 +47,26 @@ def substitute_variables(command: str, input_args: dict, test_input_defs: dict) 
     """Replace #{variable} placeholders with provided or default values."""
     result = command
     for arg_name, arg_def in test_input_defs.items():
-        value = input_args.get(arg_name, arg_def.get("default", ""))
-        result = result.replace(f"#{{{arg_name}}}", str(value))
-    # Replace any remaining #{...} with their placeholder name (safety net)
-    result = re.sub(r"#\{([^}]+)\}", lambda m: input_args.get(m.group(1), f"MISSING_{m.group(1)}"), result)
+        value = str(input_args.get(arg_name, arg_def.get("default", "")))
+        if len(value) > _MAX_SUBST_LEN:
+            raise ValueError(
+                f"Substituted value for '{arg_name}' exceeds {_MAX_SUBST_LEN}-character limit"
+            )
+        result = result.replace(f"#{{{arg_name}}}", value)
+
+    # Replace any remaining #{identifier} placeholders (safety net).
+    # Pattern restricted to [A-Za-z0-9_]+ — avoids polynomial backtracking
+    # on attacker-controlled input (ReDoS fix for CodeQL py/polynomial-redos).
+    def _replace(m: re.Match) -> str:
+        key = m.group(1)
+        val = str(input_args.get(key, f"MISSING_{key}"))
+        if len(val) > _MAX_SUBST_LEN:
+            raise ValueError(
+                f"Substituted value for '{key}' exceeds {_MAX_SUBST_LEN}-character limit"
+            )
+        return val
+
+    result = _PLACEHOLDER_RE.sub(_replace, result)
     return result
 
 
@@ -78,18 +99,26 @@ def substitute_variables_safe(
     """Replace #{variable} placeholders with safely escaped values for executor_type."""
     result = command
     for arg_name, arg_def in test_input_defs.items():
-        value = input_args.get(arg_name, arg_def.get("default", ""))
+        value = str(input_args.get(arg_name, arg_def.get("default", "")))
+        if len(value) > _MAX_SUBST_LEN:
+            raise ValueError(
+                f"Substituted value for '{arg_name}' exceeds {_MAX_SUBST_LEN}-character limit"
+            )
         result = result.replace(f"#{{{arg_name}}}", _escape_for_executor(value, executor_type))
 
-    # Replace any remaining #{...} placeholders with escaped value or marker.
-    result = re.sub(
-        r"#\{([^}]+)\}",
-        lambda m: _escape_for_executor(
-            input_args.get(m.group(1), f"MISSING_{m.group(1)}"),
-            executor_type,
-        ),
-        result,
-    )
+    # Replace any remaining #{identifier} placeholders with escaped value or marker.
+    # Pattern restricted to [A-Za-z0-9_]+ — avoids polynomial backtracking
+    # on attacker-controlled input (ReDoS fix for CodeQL py/polynomial-redos).
+    def _replace_safe(m: re.Match) -> str:
+        key = m.group(1)
+        val = str(input_args.get(key, f"MISSING_{key}"))
+        if len(val) > _MAX_SUBST_LEN:
+            raise ValueError(
+                f"Substituted value for '{key}' exceeds {_MAX_SUBST_LEN}-character limit"
+            )
+        return _escape_for_executor(val, executor_type)
+
+    result = _PLACEHOLDER_RE.sub(_replace_safe, result)
     return result
 
 
