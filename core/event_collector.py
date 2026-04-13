@@ -16,6 +16,7 @@ import json
 import logging
 import platform
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 
 logger = logging.getLogger("atomicloop.collector")
@@ -87,6 +88,11 @@ def collect_events(
 
     if not log_sources:
         log_sources = DEFAULT_LOG_SOURCES
+    else:
+        allowed = set(DEFAULT_LOG_SOURCES)
+        log_sources = [src for src in log_sources if src in allowed]
+        if not log_sources:
+            log_sources = DEFAULT_LOG_SOURCES
 
     raw_events = _query_wel(start_time_iso, log_sources, max_per_channel, timeout)
     ecs_events = [_to_ecs_lite(e) for e in raw_events]
@@ -102,24 +108,43 @@ def _query_wel(
 ) -> list[dict]:
     """Run the PowerShell collection script and return parsed raw events."""
     try:
-        log_names_json = json.dumps(log_sources)
-        script = _PS_COLLECT
+        # Defense in depth: enforce allowlist again at command-construction boundary.
+        allowed = set(DEFAULT_LOG_SOURCES)
+        safe_log_sources = [src for src in log_sources if src in allowed]
+        if not safe_log_sources:
+            safe_log_sources = DEFAULT_LOG_SOURCES
+
+        log_names_json = json.dumps(safe_log_sources)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".ps1", delete=False, encoding="utf-8") as ps_file:
+            ps_file.write(_PS_COLLECT)
+            script_path = ps_file.name
+
         ps_args = [
             "powershell.exe",
             "-NonInteractive",
             "-NoProfile",
-            "-Command",
-            f"& {{ {script} }} "
-            f"-StartTime '{start_time_iso}' "
-            f"-LogNamesJson '{log_names_json}' "
-            f"-MaxPerLog {max_per_channel}",
+            "-File",
+            script_path,
+            "-StartTime",
+            start_time_iso,
+            "-LogNamesJson",
+            log_names_json,
+            "-MaxPerLog",
+            str(max_per_channel),
         ]
-        proc = subprocess.run(
-            ps_args,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        try:
+            proc = subprocess.run(
+                ps_args,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        finally:
+            try:
+                import os
+                os.unlink(script_path)
+            except Exception:
+                pass
         raw_output = (proc.stdout or "").strip()
         if not raw_output or raw_output in ("null", ""):
             return []
