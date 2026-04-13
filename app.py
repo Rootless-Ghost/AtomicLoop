@@ -190,7 +190,7 @@ def api_run():
 
     except Exception as exc:
         logger.error("Run error: %s", exc, exc_info=True)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
 
 
 # ── API: validate detection ───────────────────────────────────────────────────
