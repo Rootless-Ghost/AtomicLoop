@@ -108,6 +108,16 @@ def _query_wel(
 ) -> list[dict]:
     """Run the PowerShell collection script and return parsed raw events."""
     try:
+        # Normalize and validate subprocess-bound inputs.
+        try:
+            parsed_start = datetime.fromisoformat(start_time_iso.replace("Z", "+00:00"))
+            safe_start_time_iso = parsed_start.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        except Exception:
+            safe_start_time_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+        safe_max_per_channel = max(1, min(int(max_per_channel), 1000))
+        safe_timeout = max(1, min(int(timeout), 300))
+
         # Defense in depth: enforce allowlist again at command-construction boundary.
         allowed = set(DEFAULT_LOG_SOURCES)
         safe_log_sources = [src for src in log_sources if src in allowed]
@@ -126,18 +136,18 @@ def _query_wel(
             "-File",
             script_path,
             "-StartTime",
-            start_time_iso,
+            safe_start_time_iso,
             "-LogNamesJson",
             log_names_json,
             "-MaxPerLog",
-            str(max_per_channel),
+            str(safe_max_per_channel),
         ]
         try:
             proc = subprocess.run(
                 ps_args,
                 capture_output=True,
                 text=True,
-                timeout=timeout,
+                timeout=safe_timeout,
             )
         finally:
             try:
