@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AtomicLoop{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+<div class="app-container">
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <a href="/" class="sidebar-logo">
+                <div class="logo-icon">AL</div>
+                <div>
+                    <div class="logo-text">AtomicLoop</div>
+                    <div class="logo-version">v1.0.0</div>
+                </div>
+            </a>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Test Runner</div>
+                <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+                    <span class="nav-icon">⚡</span> Technique Browser
+                </a>
+                <a href="/results" class="nav-link {% if request.path == '/results' %}active{% endif %}">
+                    <span class="nav-icon">📋</span> Run History
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Result Types</div>
+                <div class="legend-item">
+                    <span class="dot dot-fired"></span> Detection Fired
+                </div>
+                <div class="legend-item">
+                    <span class="dot dot-miss"></span> Detection Miss
+                </div>
+                <div class="legend-item">
+                    <span class="dot dot-dry"></span> Dry Run
+                </div>
+                <div class="legend-item">
+                    <span class="dot dot-pending"></span> Not Validated
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Nebula Forge Suite</div>
+                <a href="http://127.0.0.1:5006" class="nav-link nav-suite" target="_blank">
+                    <span class="nav-icon">🔀</span> LogNorm
+                </a>
+                <a href="http://127.0.0.1:5007" class="nav-link nav-suite" target="_blank">
+                    <span class="nav-icon">🎯</span> HuntForge
+                </a>
+                <a href="http://127.0.0.1:5008" class="nav-link nav-suite" target="_blank">
+                    <span class="nav-icon">📡</span> DriftWatch
+                </a>
+                <a href="http://127.0.0.1:5000" class="nav-link nav-suite" target="_blank">
+                    <span class="nav-icon">⚙️</span> SigmaForge
+                </a>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-status">
+                <div class="status-dot online" id="healthDot"></div>
+                <span>AtomicLoop API</span>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_scripts %}{% endblock %}
+
+<script>
+fetch('/api/health')
+    .then(r => r.json())
+    .then(d => {
+        document.getElementById('healthDot').className =
+            d.status === 'ok' ? 'status-dot online' : 'status-dot offline';
+    })
+    .catch(() => {
+        document.getElementById('healthDot').className = 'status-dot offline';
+    });
+</script>
+</body>
+</html>

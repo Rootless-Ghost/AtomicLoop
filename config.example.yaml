@@ -1,0 +1,19 @@
+# AtomicLoop Configuration
+# =========================================================
+# Copy this file to config.yaml and adjust to your environment.
+
+port:    5011
+db_path: ./atomicloop.db
+
+# ── Execution settings ──────────────────────────────────
+execution:
+  timeout:         30      # Default execution timeout (seconds)
+  require_confirm: true    # Require confirm=true in API body to execute
+  auto_save:       true    # Persist every run to SQLite
+  max_events:      500     # Max events to collect per run
+
+# ── Integration URLs ────────────────────────────────────
+integrations:
+  lognorm_url:    http://127.0.0.1:5006   # LogNorm — event normalization
+  huntforge_url:  http://127.0.0.1:5007   # HuntForge — technique context
+  driftwatch_url: http://127.0.0.1:5008   # DriftWatch — Sigma validation

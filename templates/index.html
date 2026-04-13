@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}AtomicLoop — Technique Browser{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Atomic Red Team Runner</h1>
+        <p class="page-subtitle">Select a technique → configure run options → execute → validate detection</p>
+    </div>
+    <div class="header-actions">
+        <input type="text" id="techSearch" class="search-input" placeholder="Search techniques…" oninput="filterTechniques(this.value)">
+    </div>
+</div>
+
+<div class="technique-browser">
+
+    <!-- Left: Technique list -->
+    <div class="technique-list-panel" id="techniqueListPanel">
+        <div class="panel-header">
+            <span id="techCount" class="panel-count">Loading…</span>
+        </div>
+        <div id="techniqueList" class="technique-list">
+            <div class="loading-placeholder">Loading techniques…</div>
+        </div>
+    </div>
+
+    <!-- Right: Test detail + run controls -->
+    <div class="test-detail-panel" id="testDetailPanel">
+        <div class="detail-empty" id="detailEmpty">
+            <div class="empty-icon">⚡</div>
+            <div class="empty-title">Select a technique</div>
+            <div class="empty-sub">Choose a MITRE ATT&amp;CK technique from the list to view available tests and run controls.</div>
+        </div>
+
+        <!-- Technique header (shown when selected) -->
+        <div class="detail-content hidden" id="detailContent">
+            <div class="technique-header-card">
+                <div class="technique-id-pill" id="detailTechId"></div>
+                <div class="technique-tactic-pill" id="detailTactic"></div>
+                <h2 class="technique-title" id="detailTechName"></h2>
+                <p class="technique-desc" id="detailTechDesc"></p>
+                <a id="detailMitreUrl" href="#" target="_blank" class="mitre-link">View on MITRE ATT&CK →</a>
+            </div>
+
+            <!-- Test selector tabs -->
+            <div class="test-tabs" id="testTabs"></div>
+
+            <!-- Selected test details -->
+            <div class="selected-test-card" id="selectedTestCard">
+                <div class="test-meta-row">
+                    <span class="test-meta-badge executor-badge" id="testExecutorBadge"></span>
+                    <span class="test-meta-badge perm-badge" id="testPermBadge"></span>
+                    <span class="test-meta-badge platform-badge">Windows</span>
+                </div>
+                <p class="test-desc" id="testDesc"></p>
+
+                <!-- Command preview tabs -->
+                <div class="cmd-tabs">
+                    <button class="cmd-tab active" onclick="showCmdTab('command')">Command</button>
+                    <button class="cmd-tab" onclick="showCmdTab('cleanup')">Cleanup</button>
+                    <button class="cmd-tab" onclick="showCmdTab('artifacts')">Expected Artifacts</button>
+                </div>
+                <div class="cmd-panel" id="cmdPanel-command">
+                    <pre class="cmd-pre" id="testCommand"></pre>
+                </div>
+                <div class="cmd-panel hidden" id="cmdPanel-cleanup">
+                    <pre class="cmd-pre" id="testCleanup"></pre>
+                </div>
+                <div class="cmd-panel hidden" id="cmdPanel-artifacts">
+                    <div class="artifacts-grid" id="testArtifacts"></div>
+                </div>
+            </div>
+
+            <!-- Input arguments (shown when test has args) -->
+            <div class="input-args-card hidden" id="inputArgsCard">
+                <div class="card-title">Input Arguments</div>
+                <div id="inputArgsFields"></div>
+            </div>
+
+            <!-- Run controls -->
+            <div class="run-controls-card">
+                <div class="card-title">Run Controls</div>
+                <div class="run-options-row">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="dryRunToggle" checked onchange="updateRunButtonState()">
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        Dry Run
+                    </label>
+                    <div class="timeout-group">
+                        <label class="field-label" for="timeoutInput">Timeout (s)</label>
+                        <input type="number" id="timeoutInput" class="num-input" value="30" min="5" max="300">
+                    </div>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="captureEventsToggle" checked>
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        Capture Events
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="normalizeToggle" checked>
+                        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        Normalize (LogNorm)
+                    </label>
+                </div>
+
+                <div class="confirm-row" id="confirmRow">
+                    <label class="confirm-label">
+                        <input type="checkbox" id="confirmCheck" onchange="updateRunButtonState()">
+                        <span>I confirm this will execute the test command on the local host</span>
+                    </label>
+                </div>
+
+                <div class="run-btn-row">
+                    <button class="run-btn" id="runBtn" onclick="runTest()">
+                        <span class="btn-icon">▶</span> Run Test
+                    </button>
+                    <span class="run-status hidden" id="runStatus">
+                        <span class="spinner"></span> Executing…
+                    </span>
+                </div>
+            </div>
+
+            <!-- Result panel (shown after run) -->
+            <div class="run-result-panel hidden" id="runResultPanel">
+                <div class="result-header">
+                    <div class="result-title">Execution Result</div>
+                    <div class="result-actions">
+                        <a id="resultViewLink" href="#" class="btn-sm">View Full Run →</a>
+                        <button class="btn-sm" onclick="openValidationPanel()">Validate Detection</button>
+                    </div>
+                </div>
+
+                <div class="result-stats-row">
+                    <div class="rstat">
+                        <div class="rstat-val" id="resExitCode">—</div>
+                        <div class="rstat-lbl">Exit Code</div>
+                    </div>
+                    <div class="rstat">
+                        <div class="rstat-val" id="resDuration">—</div>
+                        <div class="rstat-lbl">Duration</div>
+                    </div>
+                    <div class="rstat">
+                        <div class="rstat-val" id="resEventCount">—</div>
+                        <div class="rstat-lbl">Events</div>
+                    </div>
+                    <div class="rstat">
+                        <div class="rstat-val" id="resRunId" style="font-size:0.65rem;word-break:break-all">—</div>
+                        <div class="rstat-lbl">Run ID</div>
+                    </div>
+                </div>
+
+                <div class="output-label">stdout / output</div>
+                <pre class="output-pre" id="resOutput"></pre>
+
+                <div class="output-label hidden" id="stderrLabel">stderr</div>
+                <pre class="output-pre stderr-pre hidden" id="resStderr"></pre>
+            </div>
+
+            <!-- Validation panel -->
+            <div class="validation-panel hidden" id="validationPanel">
+                <div class="card-title">Detection Validation</div>
+                <div class="sigma-input-row">
+                    <label class="field-label">Sigma Rule (YAML)</label>
+                    <textarea id="sigmaRuleInput" class="sigma-textarea" placeholder="Paste your Sigma rule here…&#10;&#10;title: Detect PowerShell Encoded Command&#10;detection:&#10;  selection:&#10;    process.name: powershell.exe&#10;    process.command_line|contains: '-EncodedCommand'&#10;  condition: selection"></textarea>
+                </div>
+                <div class="validate-btn-row">
+                    <button class="run-btn validate-btn" id="validateBtn" onclick="validateDetection()">
+                        <span class="btn-icon">🔍</span> Validate Detection
+                    </button>
+                    <span class="run-status hidden" id="validateStatus">
+                        <span class="spinner"></span> Validating…
+                    </span>
+                </div>
+
+                <div class="val-result hidden" id="valResult">
+                    <div class="val-verdict" id="valVerdict"></div>
+                    <div class="val-gap" id="valGap"></div>
+                    <div class="val-matched-label hidden" id="valMatchedLabel">Matched Events</div>
+                    <div id="valMatchedEvents"></div>
+                </div>
+            </div>
+
+        </div><!-- /detailContent -->
+    </div><!-- /testDetailPanel -->
+</div><!-- /technique-browser -->
+{% endblock %}

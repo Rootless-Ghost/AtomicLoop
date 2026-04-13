@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}AtomicLoop — Run {{ run.technique_id }} #{{ run.test_number }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">
+            {{ run.technique_id }} — {{ run.test_name }}
+        </h1>
+        <p class="page-subtitle">
+            {{ run.tactic }}  ·  Test #{{ run.test_number }}  ·  {{ (run.executed_at or '')[:19] | replace('T',' ') }} UTC
+        </p>
+    </div>
+    <div class="header-actions">
+        <a href="/results" class="btn-secondary">← Run History</a>
+        <a href="/api/result/{{ run.id }}/export?format=json" class="btn-secondary">Export JSON</a>
+        <a href="/api/result/{{ run.id }}/export?format=markdown" class="btn-secondary">Export MD</a>
+    </div>
+</div>
+
+<!-- Summary bar -->
+<div class="run-summary-bar">
+    <div class="rsb-item">
+        <div class="rsb-val {% if run.exit_code == 0 %}color-green{% elif run.exit_code is not none %}color-red{% endif %}">
+            {% if run.exit_code is not none %}{{ run.exit_code }}{% else %}—{% endif %}
+        </div>
+        <div class="rsb-lbl">Exit Code</div>
+    </div>
+    <div class="rsb-item">
+        <div class="rsb-val">{{ run.duration_ms or 0 }}ms</div>
+        <div class="rsb-lbl">Duration</div>
+    </div>
+    <div class="rsb-item">
+        <div class="rsb-val">{{ run.event_count or 0 }}</div>
+        <div class="rsb-lbl">Events</div>
+    </div>
+    <div class="rsb-item">
+        {% if run.detection_fired == true %}
+        <div class="rsb-val color-green">FIRED</div>
+        {% elif run.detection_fired == false %}
+        <div class="rsb-val color-red">MISS</div>
+        {% else %}
+        <div class="rsb-val color-muted">—</div>
+        {% endif %}
+        <div class="rsb-lbl">Detection</div>
+    </div>
+    <div class="rsb-item">
+        <div class="rsb-val {% if run.dry_run %}color-muted{% else %}color-green{% endif %}">
+            {{ 'DRY RUN' if run.dry_run else 'EXECUTED' }}
+        </div>
+        <div class="rsb-lbl">Mode</div>
+    </div>
+    <div class="rsb-item">
+        <div class="rsb-val" style="font-size:0.7rem">{{ run.executor_type }}</div>
+        <div class="rsb-lbl">Executor</div>
+    </div>
+</div>
+
+<div class="run-detail-grid">
+
+    <!-- Left column -->
+    <div class="run-detail-left">
+
+        <!-- Command executed -->
+        <div class="detail-card">
+            <div class="detail-card-title">Command Executed</div>
+            <div class="badge-row">
+                <span class="meta-badge">{{ run.executor_type }}</span>
+                <span class="meta-badge {% if run.required_permissions == 'administrator' %}badge-admin{% endif %}">
+                    {{ run.required_permissions or 'user' }}
+                </span>
+            </div>
+            <pre class="cmd-pre">{{ run.command or '' }}</pre>
+            {% if run.cleanup_command %}
+            <div class="cleanup-label">Cleanup Command</div>
+            <pre class="cmd-pre cmd-pre-sm">{{ run.cleanup_command }}</pre>
+            {% endif %}
+        </div>
+
+        <!-- Execution output -->
+        {% if run.raw_output %}
+        <div class="detail-card">
+            <div class="detail-card-title">Execution Output</div>
+            <pre class="output-pre">{{ run.raw_output[:4096] }}</pre>
+            {% if run.raw_output|length > 4096 %}
+            <div class="output-truncated">Output truncated — export JSON for full output</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if run.stderr %}
+        <div class="detail-card">
+            <div class="detail-card-title">stderr</div>
+            <pre class="output-pre stderr-pre">{{ run.stderr[:2048] }}</pre>
+        </div>
+        {% endif %}
+
+        <!-- Captured events -->
+        {% if run.events %}
+        <div class="detail-card">
+            <div class="detail-card-title">
+                Captured Events
+                <span class="count-badge">{{ run.events|length }}</span>
+            </div>
+            <div class="events-table-wrap">
+                <table class="events-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>EventID</th>
+                            <th>Log Source</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ev in run.events[:50] %}
+                        <tr class="event-row" onclick="toggleEventDetail(this)">
+                            <td class="mono-cell">{{ (ev.get('@timestamp') or '')[:19] | replace('T',' ') }}</td>
+                            <td><span class="eid-pill">{{ ev.get('event', {}).get('code', '') }}</span></td>
+                            <td class="src-cell">{{ ev.get('log', {}).get('name', '') }}</td>
+                            <td>{{ ev.get('event', {}).get('action', '') }}</td>
+                        </tr>
+                        <tr class="event-detail-row hidden">
+                            <td colspan="4">
+                                <pre class="event-json-pre">{{ ev | tojson(indent=2) }}</pre>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if run.events|length > 50 %}
+                        <tr><td colspan="4" class="more-events">… {{ run.events|length - 50 }} more events — export JSON for full list</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+    </div><!-- /left -->
+
+    <!-- Right column -->
+    <div class="run-detail-right">
+
+        <!-- Test metadata -->
+        <div class="detail-card">
+            <div class="detail-card-title">Test Metadata</div>
+            <div class="meta-kv-list">
+                <div class="meta-kv"><span class="meta-k">Technique</span><span class="meta-v">{{ run.technique_id }}</span></div>
+                <div class="meta-kv"><span class="meta-k">Name</span><span class="meta-v">{{ run.technique_name or '' }}</span></div>
+                <div class="meta-kv"><span class="meta-k">Tactic</span><span class="meta-v">{{ run.tactic or '' }}</span></div>
+                <div class="meta-kv"><span class="meta-k">Test #</span><span class="meta-v">{{ run.test_number }}</span></div>
+                <div class="meta-kv"><span class="meta-k">Run ID</span><span class="meta-v mono-val">{{ run.id or '' }}</span></div>
+                <div class="meta-kv"><span class="meta-k">Executed</span><span class="meta-v">{{ (run.executed_at or '')[:19] | replace('T',' ') }} UTC</span></div>
+            </div>
+        </div>
+
+        <!-- Expected artifacts -->
+        <div class="detail-card">
+            <div class="detail-card-title">Expected Artifacts</div>
+            <div class="artifact-section-label">Event IDs</div>
+            <div class="eid-grid">
+                {% for eid in (run.expected_event_ids or []) %}
+                {% set found = run.events and run.events|selectattr('event', 'defined')|selectattr('event.code', 'equalto', eid|string)|list %}
+                <span class="eid-badge {% if found %}eid-found{% else %}eid-missing{% endif %}">{{ eid }}</span>
+                {% endfor %}
+            </div>
+            <div class="artifact-section-label" style="margin-top:10px">Log Sources</div>
+            <div class="src-grid">
+                {% for src in (run.expected_log_sources or []) %}
+                <span class="src-badge">{{ src }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Detection validation -->
+        <div class="detail-card validation-card">
+            <div class="detail-card-title">Detection Validation</div>
+            {% if run.validation %}
+            {% set val = run.validation %}
+            <div class="val-verdict-large {% if val.detection_fired == true %}val-fired{% elif val.detection_fired == false %}val-miss{% else %}val-pending{% endif %}">
+                {% if val.detection_fired == true %}✓ FIRED{% elif val.detection_fired == false %}✗ MISS{% else %}— NOT EVALUATED{% endif %}
+            </div>
+            <div class="val-match-count">{{ val.match_count or 0 }} matched event(s) · {{ val.source or '' }}</div>
+            <div class="val-gap-text">{{ val.gap_analysis or '' }}</div>
+            {% else %}
+            <div class="val-empty">
+                <p>No detection validation recorded for this run.</p>
+                <p>Use <code>POST /api/validate</code> with <code>run_id="{{ run.id }}"</code> and your Sigma rule.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Description -->
+        <div class="detail-card">
+            <div class="detail-card-title">Description</div>
+            <p class="desc-text">{{ run.description or '' }}</p>
+        </div>
+
+    </div><!-- /right -->
+</div><!-- /run-detail-grid -->
+
+<script>
+function toggleEventDetail(row) {
+    const detailRow = row.nextElementSibling;
+    if (detailRow && detailRow.classList.contains('event-detail-row')) {
+        detailRow.classList.toggle('hidden');
+        row.classList.toggle('event-row-open');
+    }
+}
+</script>
+{% endblock %}

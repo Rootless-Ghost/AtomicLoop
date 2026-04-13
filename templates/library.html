@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}AtomicLoop — Run History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Run History</h1>
+        <p class="page-subtitle">All saved atomic test runs with execution results and detection verdicts</p>
+    </div>
+    <div class="header-actions">
+        <a href="/" class="btn-secondary">← Technique Browser</a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+    <input type="text" id="searchInput" class="search-input" placeholder="Search by technique or test name…" oninput="loadRuns()">
+    <select id="techFilter" class="filter-select" onchange="loadRuns()">
+        <option value="">All Techniques</option>
+        <option value="T1059.001">T1059.001 — PowerShell</option>
+        <option value="T1059.003">T1059.003 — Command Shell</option>
+        <option value="T1055">T1055 — Process Injection</option>
+        <option value="T1003">T1003 — Credential Dumping</option>
+        <option value="T1082">T1082 — System Info Discovery</option>
+        <option value="T1083">T1083 — File Discovery</option>
+        <option value="T1057">T1057 — Process Discovery</option>
+        <option value="T1069">T1069 — Permission Groups</option>
+        <option value="T1021.001">T1021.001 — RDP</option>
+        <option value="T1021.002">T1021.002 — SMB</option>
+        <option value="T1547.001">T1547.001 — Run Keys</option>
+        <option value="T1053.005">T1053.005 — Scheduled Task</option>
+        <option value="T1070.001">T1070.001 — Clear Logs</option>
+        <option value="T1112">T1112 — Modify Registry</option>
+        <option value="T1027">T1027 — Obfuscation</option>
+        <option value="T1562.001">T1562.001 — Impair Defenses</option>
+        <option value="T1566.001">T1566.001 — Phishing</option>
+        <option value="T1078">T1078 — Valid Accounts</option>
+        <option value="T1110.001">T1110.001 — Brute Force</option>
+        <option value="T1190">T1190 — Exploit App</option>
+    </select>
+    <select id="firedFilter" class="filter-select" onchange="loadRuns()">
+        <option value="">All Results</option>
+        <option value="fired">Detection Fired</option>
+        <option value="miss">Detection Miss</option>
+        <option value="pending">Not Validated</option>
+        <option value="dry">Dry Run</option>
+    </select>
+</div>
+
+<!-- Stats bar -->
+<div class="lib-stats-bar" id="libStatsBar" style="display:none">
+    <div class="lib-stat"><span id="statTotal">0</span> total runs</div>
+    <div class="lib-stat color-green"><span id="statFired">0</span> fired</div>
+    <div class="lib-stat color-red"><span id="statMiss">0</span> missed</div>
+    <div class="lib-stat color-muted"><span id="statPending">0</span> not validated</div>
+</div>
+
+<!-- Runs table -->
+<div class="table-wrap">
+    <table class="data-table" id="runsTable">
+        <thead>
+            <tr>
+                <th>Technique</th>
+                <th>Test Name</th>
+                <th>Executor</th>
+                <th>Exit Code</th>
+                <th>Events</th>
+                <th>Detection</th>
+                <th>Mode</th>
+                <th>Executed</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="runsTbody">
+            <tr><td colspan="9" class="empty-cell">Loading runs…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+<div class="pagination" id="pagination"></div>
+
+<script>
+let _page     = 1;
+const PER_PAGE = 50;
+
+async function loadRuns() {
+    _page = 1;
+    await fetchRuns();
+}
+
+async function fetchRuns(page) {
+    if (page) _page = page;
+    const search = document.getElementById('searchInput').value || '';
+    const techId = document.getElementById('techFilter').value || '';
+    const fired  = document.getElementById('firedFilter').value || '';
+
+    const params = new URLSearchParams({
+        page: _page, per_page: PER_PAGE,
+        search, technique_id: techId,
+    });
+
+    try {
+        const resp = await fetch('/api/results?' + params);
+        const data = await resp.json();
+        renderRuns(data, fired);
+    } catch (err) {
+        document.getElementById('runsTbody').innerHTML =
+            `<tr><td colspan="9" class="empty-cell">Error loading runs: ${esc(err.message)}</td></tr>`;
+    }
+}
+
+function renderRuns(data, firedFilter) {
+    const tbody = document.getElementById('runsTbody');
+    let items   = data.items || [];
+
+    // client-side filter by fired status
+    if (firedFilter === 'fired')   items = items.filter(r => r.detection_fired === 1);
+    if (firedFilter === 'miss')    items = items.filter(r => r.detection_fired === 0);
+    if (firedFilter === 'pending') items = items.filter(r => r.detection_fired === -1 && !r.dry_run);
+    if (firedFilter === 'dry')     items = items.filter(r => r.dry_run === 1);
+
+    if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="empty-cell">No runs found.</td></tr>`;
+        document.getElementById('libStatsBar').style.display = 'none';
+        return;
+    }
+
+    // Stats
+    const all = data.items || [];
+    document.getElementById('statTotal').textContent   = data.total || 0;
+    document.getElementById('statFired').textContent   = all.filter(r => r.detection_fired === 1).length;
+    document.getElementById('statMiss').textContent    = all.filter(r => r.detection_fired === 0).length;
+    document.getElementById('statPending').textContent = all.filter(r => r.detection_fired === -1).length;
+    document.getElementById('libStatsBar').style.display = 'flex';
+
+    tbody.innerHTML = items.map(r => {
+        const firedCell = r.dry_run
+            ? '<span class="verdict-pill vp-dry">Dry Run</span>'
+            : r.detection_fired === 1
+                ? '<span class="verdict-pill vp-fired">Fired</span>'
+                : r.detection_fired === 0
+                    ? '<span class="verdict-pill vp-miss">Miss</span>'
+                    : '<span class="verdict-pill vp-pending">—</span>';
+        const exitCell = r.exit_code !== null && r.exit_code !== undefined
+            ? `<span class="${r.exit_code === 0 ? 'color-green' : 'color-red'}">${esc(String(r.exit_code))}</span>`
+            : '<span class="color-muted">—</span>';
+        const ts = (r.executed_at || '').slice(0,16).replace('T',' ');
+        return `<tr>
+            <td><span class="tid-badge">${esc(r.technique_id)}</span></td>
+            <td class="test-name-cell">${esc(r.test_name || '')}</td>
+            <td><code class="executor-code">${esc(r.executor_type || '')}</code></td>
+            <td>${exitCell}</td>
+            <td class="num-cell">${r.event_count || 0}</td>
+            <td>${firedCell}</td>
+            <td>${r.dry_run ? '<span class="mode-dry">dry</span>' : '<span class="mode-live">live</span>'}</td>
+            <td class="ts-cell">${esc(ts)}</td>
+            <td class="actions-cell">
+                <a href="/run/${esc(r.id)}" class="action-link">View</a>
+                <a href="/api/result/${esc(r.id)}/export?format=json" class="action-link">JSON</a>
+                <button class="action-link action-del" onclick="deleteRun('${esc(r.id)}',this)">Del</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    // Pagination
+    const pages = data.pages || 1;
+    const pag   = document.getElementById('pagination');
+    if (pages <= 1) { pag.innerHTML = ''; return; }
+    let html = '';
+    if (_page > 1) html += `<button class="page-btn" onclick="fetchRuns(${_page-1})">‹</button>`;
+    for (let i = Math.max(1, _page-2); i <= Math.min(pages, _page+2); i++) {
+        html += `<button class="page-btn${i===_page?' active':''}" onclick="fetchRuns(${i})">${i}</button>`;
+    }
+    if (_page < pages) html += `<button class="page-btn" onclick="fetchRuns(${_page+1})">›</button>`;
+    pag.innerHTML = html;
+}
+
+async function deleteRun(runId, btn) {
+    if (!confirm('Delete this run?')) return;
+    const resp = await fetch('/api/result/' + runId, {method:'DELETE'});
+    if (resp.ok) { btn.closest('tr').remove(); }
+    else { alert('Delete failed.'); }
+}
+
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+loadRuns();
+</script>
+{% endblock %}

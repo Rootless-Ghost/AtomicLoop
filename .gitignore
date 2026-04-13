@@ -1,0 +1,27 @@
+# AtomicLoop — .gitignore
+
+# Runtime files
+config.yaml
+atomicloop.db
+atomicloop.db-wal
+atomicloop.db-shm
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
