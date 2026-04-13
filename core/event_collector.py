@@ -29,6 +29,9 @@ DEFAULT_LOG_SOURCES = [
     "Microsoft-Windows-PowerShell/Operational",
 ]
 
+# Canonical allowlist map used to ensure only hard-coded channel literals are passed downstream.
+ALLOWED_LOG_SOURCES_MAP = {name: name for name in DEFAULT_LOG_SOURCES}
+
 # Max events per channel per collection
 MAX_EVENTS_PER_CHANNEL = 100
 
@@ -89,8 +92,8 @@ def collect_events(
     if not log_sources:
         log_sources = DEFAULT_LOG_SOURCES
     else:
-        allowed = set(DEFAULT_LOG_SOURCES)
-        log_sources = [src for src in log_sources if src in allowed]
+        log_sources = [ALLOWED_LOG_SOURCES_MAP.get(src) for src in log_sources]
+        log_sources = [src for src in log_sources if src is not None]
         if not log_sources:
             log_sources = DEFAULT_LOG_SOURCES
 
@@ -119,8 +122,8 @@ def _query_wel(
         safe_timeout = max(1, min(int(timeout), 300))
 
         # Defense in depth: enforce allowlist again at command-construction boundary.
-        allowed = set(DEFAULT_LOG_SOURCES)
-        safe_log_sources = [src for src in log_sources if src in allowed]
+        safe_log_sources = [ALLOWED_LOG_SOURCES_MAP.get(src) for src in log_sources]
+        safe_log_sources = [src for src in safe_log_sources if src is not None]
         if not safe_log_sources:
             safe_log_sources = DEFAULT_LOG_SOURCES
 
