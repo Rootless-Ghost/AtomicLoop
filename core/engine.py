@@ -19,7 +19,7 @@ import re
 from datetime import datetime, timezone
 
 from .atomics        import get_all_techniques, get_technique, get_test
-from .executor       import execute, execute_cleanup, substitute_variables, DEFAULT_TIMEOUT
+from .executor       import execute, execute_cleanup, substitute_variables_safe, DEFAULT_TIMEOUT
 from .event_collector import collect_events, normalize_via_lognorm
 from .validator      import validate_detection, validate_events_only
 from .storage        import RunStorage
@@ -147,12 +147,12 @@ class AtomicEngine:
                     }
 
         # Substitute variables in command
-        command  = substitute_variables(
-            test["command"], input_args, test.get("input_arguments", {})
+        command  = substitute_variables_safe(
+            test["command"], input_args, test.get("input_arguments", {}), test["executor_type"]
         )
         cleanup_cmd_raw = test.get("cleanup_command")
-        cleanup_command = substitute_variables(
-            cleanup_cmd_raw, input_args, test.get("input_arguments", {})
+        cleanup_command = substitute_variables_safe(
+            cleanup_cmd_raw, input_args, test.get("input_arguments", {}), test["executor_type"]
         ) if cleanup_cmd_raw else None
 
         executed_at = datetime.utcnow().isoformat() + "Z"

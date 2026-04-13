@@ -15,6 +15,7 @@ import logging
 import os
 import platform
 import re
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -45,6 +46,50 @@ def substitute_variables(command: str, input_args: dict, test_input_defs: dict) 
         result = result.replace(f"#{{{arg_name}}}", str(value))
     # Replace any remaining #{...} with their placeholder name (safety net)
     result = re.sub(r"#\{([^}]+)\}", lambda m: input_args.get(m.group(1), f"MISSING_{m.group(1)}"), result)
+    return result
+
+
+def _escape_for_executor(value: object, executor_type: str) -> str:
+    """Escape user-controlled values for the target shell/interpreter."""
+    s = str(value)
+    et = (executor_type or "").lower().strip()
+
+    if et in {"bash", "sh"}:
+        return shlex.quote(s)
+
+    if et == "powershell":
+        # PowerShell single-quoted string escaping: ' -> ''
+        return "'" + s.replace("'", "''") + "'"
+
+    if et == "cmd":
+        # Conservative quoting for cmd.exe arguments.
+        return '"' + s.replace('"', '""') + '"'
+
+    # Fallback: safe POSIX-style quoting.
+    return shlex.quote(s)
+
+
+def substitute_variables_safe(
+    command: str,
+    input_args: dict,
+    test_input_defs: dict,
+    executor_type: str,
+) -> str:
+    """Replace #{variable} placeholders with safely escaped values for executor_type."""
+    result = command
+    for arg_name, arg_def in test_input_defs.items():
+        value = input_args.get(arg_name, arg_def.get("default", ""))
+        result = result.replace(f"#{{{arg_name}}}", _escape_for_executor(value, executor_type))
+
+    # Replace any remaining #{...} placeholders with escaped value or marker.
+    result = re.sub(
+        r"#\{([^}]+)\}",
+        lambda m: _escape_for_executor(
+            input_args.get(m.group(1), f"MISSING_{m.group(1)}"),
+            executor_type,
+        ),
+        result,
+    )
     return result
 
 
