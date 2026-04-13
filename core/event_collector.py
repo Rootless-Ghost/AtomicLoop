@@ -108,7 +108,13 @@ def _query_wel(
 ) -> list[dict]:
     """Run the PowerShell collection script and return parsed raw events."""
     try:
-        log_names_json = json.dumps(log_sources)
+        # Defense in depth: enforce allowlist again at command-construction boundary.
+        allowed = set(DEFAULT_LOG_SOURCES)
+        safe_log_sources = [src for src in log_sources if src in allowed]
+        if not safe_log_sources:
+            safe_log_sources = DEFAULT_LOG_SOURCES
+
+        log_names_json = json.dumps(safe_log_sources)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".ps1", delete=False, encoding="utf-8") as ps_file:
             ps_file.write(_PS_COLLECT)
             script_path = ps_file.name
