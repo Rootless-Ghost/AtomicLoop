@@ -15,6 +15,7 @@ Orchestrates:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from .atomics        import get_all_techniques, get_technique, get_test
@@ -112,6 +113,26 @@ class AtomicEngine:
 
         effective_timeout = timeout if timeout is not None else self.default_timeout
         input_args        = input_arguments or {}
+
+        if not isinstance(input_args, dict):
+            return {
+                "success": False,
+                "error": "input_arguments must be an object/dictionary.",
+            }
+
+        # Block shell metacharacters in user-provided substitutions to avoid command injection.
+        unsafe_pattern = re.compile(r"[;&|`$<>\\n\\r]")
+        for arg_name, arg_value in input_args.items():
+            if not isinstance(arg_value, (str, int, float, bool)):
+                return {
+                    "success": False,
+                    "error": f"Invalid input argument type for {arg_name!r}.",
+                }
+            if isinstance(arg_value, str) and unsafe_pattern.search(arg_value):
+                return {
+                    "success": False,
+                    "error": f"Unsafe characters detected in input argument {arg_name!r}.",
+                }
 
         # Substitute variables in command
         command  = substitute_variables(
