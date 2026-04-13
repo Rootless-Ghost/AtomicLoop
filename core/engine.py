@@ -155,6 +155,27 @@ class AtomicEngine:
             cleanup_cmd_raw, input_args, test.get("input_arguments", {}), test["executor_type"]
         ) if cleanup_cmd_raw else None
 
+        # Integrity check: only allow commands derived from the selected embedded
+        # atomic template and its declared input arguments.
+        expected_command = substitute_variables_safe(
+            test["command"], input_args, test.get("input_arguments", {}), test["executor_type"]
+        )
+        if command != expected_command:
+            return {
+                "success": False,
+                "error": "Command integrity check failed for selected atomic test.",
+            }
+
+        if cleanup_cmd_raw:
+            expected_cleanup = substitute_variables_safe(
+                cleanup_cmd_raw, input_args, test.get("input_arguments", {}), test["executor_type"]
+            )
+            if cleanup_command != expected_cleanup:
+                return {
+                    "success": False,
+                    "error": "Cleanup command integrity check failed for selected atomic test.",
+                }
+
         executed_at = datetime.utcnow().isoformat() + "Z"
 
         # Execute
