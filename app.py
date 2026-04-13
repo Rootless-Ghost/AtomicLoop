@@ -239,7 +239,7 @@ def api_validate():
 
     except Exception as exc:
         logger.error("Validate error: %s", exc, exc_info=True)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return jsonify({"success": False, "error": "An internal error occurred."}), 500
 
 
 # ── API: results list ─────────────────────────────────────────────────────────
