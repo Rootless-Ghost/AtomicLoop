@@ -120,19 +120,31 @@ class AtomicEngine:
                 "error": "input_arguments must be an object/dictionary.",
             }
 
-        # Block shell metacharacters in user-provided substitutions to avoid command injection.
-        unsafe_pattern = re.compile(r"[;&|`$<>\\n\\r]")
+        # Strict validation for user-provided substitutions to reduce command-injection risk.
+        # Allow a conservative character set commonly needed for file paths, flags, and identifiers.
+        safe_value_pattern = re.compile(r"^[A-Za-z0-9 _.:/\\+=,@%-]*$")
         for arg_name, arg_value in input_args.items():
             if not isinstance(arg_value, (str, int, float, bool)):
                 return {
                     "success": False,
                     "error": f"Invalid input argument type for {arg_name!r}.",
                 }
-            if isinstance(arg_value, str) and unsafe_pattern.search(arg_value):
-                return {
-                    "success": False,
-                    "error": f"Unsafe characters detected in input argument {arg_name!r}.",
-                }
+            if isinstance(arg_value, str):
+                if len(arg_value) > 512:
+                    return {
+                        "success": False,
+                        "error": f"Input argument {arg_name!r} exceeds maximum length.",
+                    }
+                if any(ord(ch) < 32 for ch in arg_value):
+                    return {
+                        "success": False,
+                        "error": f"Control characters are not allowed in input argument {arg_name!r}.",
+                    }
+                if not safe_value_pattern.fullmatch(arg_value):
+                    return {
+                        "success": False,
+                        "error": f"Unsafe characters detected in input argument {arg_name!r}.",
+                    }
 
         # Substitute variables in command
         command  = substitute_variables(
