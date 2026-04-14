@@ -15,7 +15,8 @@ Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
 
 - **20 embedded MITRE ATT&CK techniques** — curated tests for T1059.001 through T1190, no internet or framework required
 - **Safety controls** — dry_run preview + explicit `confirm` flag prevents accidental execution
-- **Windows-first execution** — PowerShell + cmd executors with configurable timeout
+- **Local execution** — PowerShell, cmd, and bash executors with configurable timeout
+- **WinRM remote execution** — run atomic tests on remote Windows hosts via PS Remoting (T1021.006); optional credential support
 - **Event capture** — reads Windows Security + Sysmon event logs during the test window
 - **LogNorm integration** — normalizes captured events to ECS-lite format (port 5006)
 - **DriftWatch integration** — validates Sigma rules against captured events (port 5008)
@@ -87,12 +88,13 @@ python cli.py --results
 | GET    | `/api/health`                     | Health check |
 | GET    | `/api/atomics`                    | List all techniques |
 | GET    | `/api/atomics/<technique_id>`     | Get tests for a technique |
-| POST   | `/api/run`                        | Execute a test |
+| POST   | `/api/run`                        | Execute an atomic test (engine path) |
 | POST   | `/api/validate`                   | Validate Sigma rule against events |
 | GET    | `/api/results`                    | List past runs (paginated) |
 | GET    | `/api/result/<run_id>`            | Get a single run |
 | DELETE | `/api/result/<run_id>`            | Delete a run |
 | GET    | `/api/result/<run_id>/export`     | Export run (JSON or Markdown) |
+| POST   | `/execute`                        | Direct command execution — local or WinRM remote (API key protected) |
 
 ### POST /api/run
 
@@ -124,6 +126,86 @@ python cli.py --results
   "raw_output":    "AtomicTest T1059.001-1: Encoded execution"
 }
 ```
+
+### POST /execute
+
+Executes an allowlisted atomic command directly — locally or on a remote Windows host via WinRM. Protected by `ATOMICLOOP_API_KEY` when that env var is set (see [Environment variables](#environment-variables)).
+
+**Request headers (when API key is configured):**
+```
+X-API-Key: <your-key>
+Content-Type: application/json
+```
+
+**Request body:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `command` | string | Yes | — | Atomic test command to execute. Must match a command in the embedded allowlist. |
+| `executor_type` | string | No | `"powershell"` | Executor used for allowlist lookup and local dispatch: `powershell`, `cmd`, `bash`. |
+| `target_host` | string | Conditional | — | Remote host (hostname or IPv4/IPv6). Required when `transport` is `"winrm"`. |
+| `transport` | string | No | — | Set to `"winrm"` to execute on `target_host` via PS Remoting. Omit for local execution. |
+| `credential` | object | No | — | `{"username": "DOMAIN\\user", "password": "secret"}`. Passed as `-Credential` to `New-PSSession`. Only used when `transport` is `"winrm"`. |
+| `timeout` | integer | No | `30` | Seconds before the process or remote session is killed. |
+| `dry_run` | boolean | No | `false` | If `true`, returns the command that would be run without executing it. |
+
+**Local execution example:**
+```json
+{
+  "command":       "Get-Process",
+  "executor_type": "powershell",
+  "timeout":       30,
+  "dry_run":       false
+}
+```
+
+**WinRM remote execution example:**
+```json
+{
+  "command":       "Get-Process",
+  "executor_type": "powershell",
+  "target_host":   "192.168.1.50",
+  "transport":     "winrm",
+  "credential":    {"username": "CORP\\svctest", "password": "hunter2"},
+  "timeout":       60,
+  "dry_run":       false
+}
+```
+
+**Dry-run example (no execution, no API key required logic applies normally):**
+```json
+{
+  "command":     "Get-Process",
+  "target_host": "192.168.1.50",
+  "transport":   "winrm",
+  "dry_run":     true
+}
+```
+
+**Response:**
+```json
+{
+  "success":     true,
+  "exit_code":   0,
+  "stdout":      "...",
+  "stderr":      "",
+  "duration_ms": 1340,
+  "timed_out":   false,
+  "dry_run":     false,
+  "command":     "Get-Process",
+  "error":       null
+}
+```
+
+**Error responses:**
+
+| Status | Body | Cause |
+|--------|------|-------|
+| `400` | `{"success": false, "error": "command is required"}` | Empty or missing `command` field |
+| `400` | `{"success": false, "error": "target_host is required when transport is 'winrm'"}` | `transport=winrm` with no `target_host` |
+| `200` | `{"success": false, "error": "Command is not in the embedded atomic allowlist."}` | Command does not match any embedded atomic test |
+| `200` | `{"success": false, "error": "Invalid target_host: ..."}` | `target_host` contains characters outside hostname/IP character set |
+| `401` | `{"error": "unauthorized"}` | `X-API-Key` header missing or incorrect |
 
 ### POST /api/validate
 
@@ -175,7 +257,46 @@ python cli.py --results
 
 ---
 
+## WinRM Prerequisites
+
+The `/execute` route with `transport=winrm` uses PowerShell Remoting (`New-PSSession` / `Invoke-Command`). The following must be true on the **target host** before remote execution will succeed.
+
+### Target host (Windows)
+
+```powershell
+# Enable PS Remoting (run as Administrator)
+Enable-PSRemoting -Force
+
+# Confirm WinRM is listening
+winrm enumerate winrm/config/listener
+
+# If the source host is not domain-joined, add it to TrustedHosts on the source
+# (run on the AtomicLoop host, not the target)
+Set-Item WSMan:\localhost\Client\TrustedHosts -Value "192.168.1.50" -Force
+```
+
+### Network
+
+| Port | Protocol | Direction | Purpose |
+|------|----------|-----------|---------|
+| 5985 | HTTP | Source → Target | WinRM (unencrypted, lab use) |
+| 5986 | HTTPS | Source → Target | WinRM over TLS (recommended for non-lab) |
+
+### Credentials
+
+Pass credentials via the `credential` field in the request body. The account must have permission to create PS sessions on the target (local Administrator or a delegated WinRM user).
+
+> **Note:** Credentials are transmitted in the JSON request body and embedded in a PowerShell `-Command` string. Use HTTPS between your client and the AtomicLoop server, and rotate test credentials after exercises.
+
+### AtomicLoop host
+
+PowerShell (Windows: `powershell.exe`) or PowerShell Core (Linux/macOS: `pwsh`) must be installed and on `PATH`. The executor is selected automatically based on the OS AtomicLoop is running on.
+
+---
+
 ## Configuration
+
+### config.yaml
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -187,6 +308,28 @@ python cli.py --results
 | `integrations.lognorm_url` | `http://127.0.0.1:5006` | LogNorm endpoint |
 | `integrations.driftwatch_url` | `http://127.0.0.1:5008` | DriftWatch endpoint |
 
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ATOMICLOOP_API_KEY` | No | Shared secret required in the `X-API-Key` header on all `POST /execute` requests. If unset, the route is unauthenticated (suitable for local testing only). A warning is logged at startup when the variable is absent. |
+
+```bash
+# Example — set before starting the server
+export ATOMICLOOP_API_KEY="change-me-before-exposing-to-a-network"
+python app.py
+```
+
+When the key is configured, every `POST /execute` call must include the header:
+
+```
+X-API-Key: <your-key>
+```
+
+Requests with a missing or incorrect header receive `401 {"error": "unauthorized"}`.
+
+> **Key rotation:** `ATOMICLOOP_API_KEY` is read once at process startup (module import time). Changing the environment variable has no effect on a running server — the process must be restarted to pick up a new value.
+
 ---
 
 ## Safety Controls
@@ -194,10 +337,12 @@ python cli.py --results
 AtomicLoop includes several controls to prevent accidental execution:
 
 1. **`confirm: true`** — required in every `POST /api/run` body to execute. Without it, the request is rejected.
-2. **`dry_run: true`** — shows the command without executing. Always safe.
+2. **`dry_run: true`** — shows the command without executing. Always safe. Supported on both `/api/run` and `/execute`.
 3. **`require_confirm: true`** (config) — server-enforced gate on all live executions.
-4. **Timeout** — hard kill after N seconds (default 30).
-5. **`cleanup_command`** — each test includes a cleanup command. Run it after testing.
+4. **Timeout** — hard kill after N seconds (default 30). Applied to both local processes and WinRM sessions.
+5. **Atomic allowlist** — `/execute` only dispatches commands that appear verbatim in the embedded MITRE technique library. Arbitrary commands are rejected.
+6. **`ATOMICLOOP_API_KEY`** — when set, `/execute` requires a matching `X-API-Key` header. All other routes are unaffected.
+7. **`cleanup_command`** — each test includes a cleanup command. Run it after testing.
 
 ---
 

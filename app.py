@@ -77,13 +77,26 @@ def load_config(path: str) -> dict:
 app      = Flask(__name__)
 _config: dict          = {}
 _engine: AtomicEngine  = None  # type: ignore
+_API_KEY: str          = os.environ.get("ATOMICLOOP_API_KEY", "")
 
 
 def create_app(config_path: str = "config.yaml") -> Flask:
     global _config, _engine
     _config = load_config(config_path)
     _engine = AtomicEngine(_config)
+    if not _API_KEY:
+        logger.warning(
+            "ATOMICLOOP_API_KEY is not set — /execute is unauthenticated. "
+            "Set this env var to require an API key on that route."
+        )
     return app
+
+
+def _check_api_key() -> bool:
+    """Return True if no API key is configured, or the request header matches."""
+    if not _API_KEY:
+        return True
+    return request.headers.get("X-API-Key", "") == _API_KEY
 
 
 # ── Page routes ───────────────────────────────────────────────────────────────
@@ -215,6 +228,9 @@ def execute_route():
     dispatched via New-PSSession / Invoke-Command / Remove-PSSession
     (MITRE T1021.006).  All other transport values use local execution.
     """
+    if not _check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
+
     from core.executor import execute
     from core.remote_executor import execute_remote_winrm
 
