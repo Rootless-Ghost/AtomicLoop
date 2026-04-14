@@ -193,6 +193,80 @@ def api_run():
         return jsonify({"success": False, "error": "An internal error has occurred."}), 500
 
 
+# ── API: direct command execution ────────────────────────────────────────────
+
+@app.route("/execute", methods=["POST"])
+def execute_route():
+    """
+    Execute a command locally or on a remote host.
+
+    Body (JSON):
+      {
+        "command":       "Write-Output 'hello'",
+        "executor_type": "powershell",
+        "target_host":   "192.168.1.10",          # optional
+        "transport":     "winrm",                  # optional; "winrm" => remote
+        "credential":    {"username": "u", "password": "p"},  # optional
+        "timeout":       30,
+        "dry_run":       false
+      }
+
+    When transport == "winrm", target_host is required and the command is
+    dispatched via New-PSSession / Invoke-Command / Remove-PSSession
+    (MITRE T1021.006).  All other transport values use local execution.
+    """
+    from core.executor import execute
+    from core.remote_executor import execute_remote_winrm
+
+    body = request.get_json(silent=True) or {}
+
+    command       = str(body.get("command", "")).strip()
+    executor_type = str(body.get("executor_type", "powershell")).strip().lower()
+    target_host   = str(body.get("target_host", "")).strip()
+    transport     = str(body.get("transport", "")).strip().lower()
+    credential    = body.get("credential") or None
+    timeout_raw   = body.get("timeout")
+    timeout       = int(timeout_raw) if timeout_raw is not None else 30
+    dry_run       = bool(body.get("dry_run", False))
+
+    if not command:
+        return jsonify({"success": False, "error": "command is required"}), 400
+
+    if transport == "winrm":
+        if not target_host:
+            return jsonify({
+                "success": False,
+                "error": "target_host is required when transport is 'winrm'",
+            }), 400
+        result = execute_remote_winrm(
+            command=command,
+            executor_type=executor_type,
+            target_host=target_host,
+            credential=credential,
+            timeout=timeout,
+            dry_run=dry_run,
+        )
+    else:
+        result = execute(
+            command=command,
+            executor_type=executor_type,
+            timeout=timeout,
+            dry_run=dry_run,
+        )
+
+    return jsonify({
+        "success":     result.error is None,
+        "exit_code":   result.exit_code,
+        "stdout":      result.stdout,
+        "stderr":      result.stderr,
+        "duration_ms": result.duration_ms,
+        "timed_out":   result.timed_out,
+        "dry_run":     result.dry_run,
+        "command":     result.command,
+        "error":       result.error,
+    })
+
+
 # ── API: validate detection ───────────────────────────────────────────────────
 
 @app.route("/api/validate", methods=["POST"])
