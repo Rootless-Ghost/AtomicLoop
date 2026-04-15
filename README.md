@@ -12,6 +12,34 @@ AtomicLoop closes the **purple team validation loop**: simulate an attack techni
 Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
       → Validate detection (DriftWatch) → Fix gap → Repeat
 ```
+![version](https://img.shields.io/badge/version-v1.0.0-blueviolet?style=flat-square) ![port](https://img.shields.io/badge/port-5011-5d5d5d?style=flat-square) ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python) ![framework](https://img.shields.io/badge/framework-Flask-000000?style=flat-square&logo=flask) ![MITRE%20ATT%26CK](https://img.shields.io/badge/MITRE%20ATT%26CK-mapped-e63946?style=flat-square) ![part%20of](https://img.shields.io/badge/part%20of-Nebula%20Forge-7c3aed?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+
+---
+
+## Pipeline Position
+
+![Nebula Forge pipeline — AtomicLoop highlighted](docs/pipeline.svg)
+
+> **purple-loop:** `AtomicLoop → LogNorm → ClusterIQ → HuntForge → DriftWatch → repeat`
+
+---
+
+## Screenshots
+
+### Technique Browser
+
+![Technique Browser](docs/screenshots/technique-browser.png)
+*Left panel: 20 embedded ATT&CK techniques grouped by tactic; right panel: test details, command preview, and input args*
+
+### Execution Results
+
+![Execution Results](docs/screenshots/execution-results.png)
+*Post-execution view showing exit code, captured events (ECS-lite), and raw output*
+
+### Detection Validation
+
+![Detection Validation](docs/screenshots/detection-validation.png)
+*Paste a Sigma rule and run validation — gap analysis shows exactly why the rule fired or missed*
 
 ---
 
