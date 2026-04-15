@@ -30,18 +30,8 @@ Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
 
 ### Technique Browser
 
-![Technique Browser](docs/screenshots/technique-browser.png)
-*Left panel: 20 embedded ATT&CK techniques grouped by tactic; right panel: test details, command preview, and input args*
+![Technique Browser](docs/AtomicLoop-Dashboard.png)
 
-### Execution Results
-
-![Execution Results](docs/screenshots/execution-results.png)
-*Post-execution view showing exit code, captured events (ECS-lite), and raw output*
-
-### Detection Validation
-
-![Detection Validation](docs/screenshots/detection-validation.png)
-*Paste a Sigma rule and run validation — gap analysis shows exactly why the rule fired or missed*
 
 ---
 
