@@ -6,15 +6,14 @@ Part of the **Nebula Forge** security tools suite.
 
 AtomicLoop closes the **purple team validation loop**: simulate an attack technique, capture endpoint events, and immediately validate whether your Sigma/Wazuh rules fire. No need for the full Atomic Red Team framework.
 
+![version](https://img.shields.io/badge/version-v1.0.0-blueviolet?style=flat-square) ![port](https://img.shields.io/badge/port-5011-5d5d5d?style=flat-square) ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python) ![framework](https://img.shields.io/badge/framework-Flask-000000?style=flat-square&logo=flask) ![MITRE%20ATT%26CK](https://img.shields.io/badge/MITRE%20ATT%26CK-mapped-e63946?style=flat-square) ![part%20of](https://img.shields.io/badge/part%20of-Nebula%20Forge-7c3aed?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
+</div>
 
 ```
 Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
       → Validate detection (DriftWatch) → Fix gap → Repeat
 ```
-![version](https://img.shields.io/badge/version-v1.0.0-blueviolet?style=flat-square) ![port](https://img.shields.io/badge/port-5011-5d5d5d?style=flat-square) ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python) ![framework](https://img.shields.io/badge/framework-Flask-000000?style=flat-square&logo=flask) ![MITRE%20ATT%26CK](https://img.shields.io/badge/MITRE%20ATT%26CK-mapped-e63946?style=flat-square) ![part%20of](https://img.shields.io/badge/part%20of-Nebula%20Forge-7c3aed?style=flat-square) ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-
-</div>
 
 ---
 
