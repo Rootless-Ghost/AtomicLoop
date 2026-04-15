@@ -158,6 +158,14 @@ def execute_remote_winrm(
         )
         session_cred_flag = " -Credential $_cred"
 
+    # Enforce allowlist before embedding into PowerShell -Command payload.
+    if not _is_allowed_atomic_command(command):
+        return ExecutionResult(
+            command=command,
+            error="Command is not allowed by policy.",
+            duration_ms=0,
+        )
+
     ps_script = (
         f"{cred_block}"
         f"$_s = New-PSSession -ComputerName '{safe_host}'{session_cred_flag}; "
