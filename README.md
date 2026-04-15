@@ -6,11 +6,13 @@ Part of the **Nebula Forge** security tools suite.
 
 AtomicLoop closes the **purple team validation loop**: simulate an attack technique, capture endpoint events, and immediately validate whether your Sigma/Wazuh rules fire. No need for the full Atomic Red Team framework.
 
+</div>
+
 ```
 Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
       → Validate detection (DriftWatch) → Fix gap → Repeat
 ```
-</div>
+
 ---
 
 ## Core Features
