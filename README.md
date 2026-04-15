@@ -28,7 +28,7 @@ Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
 
 ## Screenshots
 
-### Technique Browser
+### Dashboard
 
 ![Technique Browser](docs/AtomicLoop-Dashboard.png)
 
