@@ -58,7 +58,7 @@ cp config.example.yaml config.yaml   # optional
 python app.py
 ```
 
-Open - 127.0.0.1:5011
+Open [http://127.0.0.1:5011](http://127.0.0.1:5011)
 
 ---
 
