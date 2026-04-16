@@ -19,7 +19,7 @@ Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
 
 ## Pipeline Position
 
-![Nebula Forge pipeline — AtomicLoop highlighted](docs/pipeline.svg)
+![Nebula Forge pipeline — AtomicLoop highlighted](docs/Pipeline.svg)
 
 > **purple-loop:** `AtomicLoop → LogNorm → ClusterIQ → HuntForge → DriftWatch → repeat`
 
