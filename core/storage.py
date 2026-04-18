@@ -1,67 +1,34 @@
 """
-AtomicLoop — SQLite storage for test run artifacts.
+AtomicLoop — PostgreSQL storage for test run artifacts.
+
+Schema is managed externally via init-db/. Table expected: atomicloop_runs
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import sqlite3
+import os
 import uuid
 from datetime import datetime
+
+import psycopg2
+import psycopg2.extras
 
 logger = logging.getLogger("atomicloop.storage")
 
 
 class RunStorage:
-    """Manages the SQLite database for test run results."""
 
     def __init__(self, db_path: str = "./atomicloop.db"):
-        self.db_path = db_path
-        self._init_db()
+        self._url = os.environ.get("DATABASE_URL") or db_path
 
-    # ── Connection ─────────────────────────────────────────────────────────────
-
-    def _get_conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _init_db(self) -> None:
-        with self._get_conn() as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS runs (
-                    id               TEXT PRIMARY KEY,
-                    technique_id     TEXT NOT NULL,
-                    test_number      INTEGER NOT NULL DEFAULT 1,
-                    test_name        TEXT NOT NULL DEFAULT '',
-                    executor_type    TEXT NOT NULL DEFAULT '',
-                    exit_code        INTEGER,
-                    executed_at      TEXT NOT NULL,
-                    duration_ms      INTEGER DEFAULT 0,
-                    event_count      INTEGER DEFAULT 0,
-                    detection_fired  INTEGER DEFAULT -1,
-                    dry_run          INTEGER DEFAULT 0,
-                    run_json         TEXT NOT NULL,
-                    created_at       TEXT NOT NULL
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_runs_technique
-                ON runs (technique_id)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_runs_executed
-                ON runs (executed_at DESC)
-            """)
-            conn.commit()
-        logger.info("Storage initialised: %s", self.db_path)
+    def _get_conn(self):
+        return psycopg2.connect(self._url)
 
     # ── Write ──────────────────────────────────────────────────────────────────
 
     def save_run(self, run: dict) -> dict:
-        """Persist a run result. Generates a UUID if not present. Returns updated run."""
         run_id = run.get("id") or str(uuid.uuid4())
         now    = datetime.utcnow().isoformat() + "Z"
 
@@ -71,33 +38,34 @@ class RunStorage:
         elif detection_fired_raw is False:
             detection_fired_int = 0
         else:
-            detection_fired_int = -1  # not evaluated
+            detection_fired_int = -1
 
         with self._get_conn() as conn:
-            conn.execute(
-                """
-                INSERT INTO runs
-                    (id, technique_id, test_number, test_name, executor_type,
-                     exit_code, executed_at, duration_ms, event_count,
-                     detection_fired, dry_run, run_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    run_id,
-                    run.get("technique_id", ""),
-                    run.get("test_number", 1),
-                    run.get("test_name", ""),
-                    run.get("executor_type", ""),
-                    run.get("exit_code"),
-                    run.get("executed_at", now),
-                    run.get("duration_ms", 0),
-                    len(run.get("events", [])),
-                    detection_fired_int,
-                    1 if run.get("dry_run") else 0,
-                    json.dumps(run, ensure_ascii=False),
-                    now,
-                ),
-            )
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO atomicloop_runs
+                        (id, technique_id, test_number, test_name, executor_type,
+                         exit_code, executed_at, duration_ms, event_count,
+                         detection_fired, dry_run, run_json, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        run_id,
+                        run.get("technique_id", ""),
+                        run.get("test_number", 1),
+                        run.get("test_name", ""),
+                        run.get("executor_type", ""),
+                        run.get("exit_code"),
+                        run.get("executed_at", now),
+                        run.get("duration_ms", 0),
+                        len(run.get("events", [])),
+                        detection_fired_int,
+                        1 if run.get("dry_run") else 0,
+                        json.dumps(run, ensure_ascii=False),
+                        now,
+                    ),
+                )
             conn.commit()
 
         run["id"]         = run_id
@@ -112,9 +80,11 @@ class RunStorage:
 
     def get_run(self, run_id: str) -> dict | None:
         with self._get_conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM runs WHERE id = ?", (run_id,)
-            ).fetchone()
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT * FROM atomicloop_runs WHERE id = %s", (run_id,)
+                )
+                row = cur.fetchone()
         if row is None:
             return None
         data             = json.loads(row["run_json"])
@@ -133,33 +103,36 @@ class RunStorage:
         params:     list      = []
 
         if search:
-            conditions.append("(LOWER(test_name) LIKE LOWER(?) OR LOWER(technique_id) LIKE LOWER(?))")
+            conditions.append(
+                "(LOWER(test_name) LIKE LOWER(%s) OR LOWER(technique_id) LIKE LOWER(%s))"
+            )
             params.extend([f"%{search}%", f"%{search}%"])
         if technique_id:
-            conditions.append("technique_id = ?")
+            conditions.append("technique_id = %s")
             params.append(technique_id.upper())
 
         where  = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         offset = (page - 1) * per_page
 
         with self._get_conn() as conn:
-            total = conn.execute(
-                f"SELECT COUNT(*) FROM runs {where}", params
-            ).fetchone()[0]
-            rows = conn.execute(
-                f"""
-                SELECT id, technique_id, test_number, test_name, executor_type,
-                       exit_code, executed_at, duration_ms, event_count,
-                       detection_fired, dry_run, created_at
-                FROM runs {where}
-                ORDER BY executed_at DESC
-                LIMIT ? OFFSET ?
-                """,
-                params + [per_page, offset],
-            ).fetchall()
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(f"SELECT COUNT(*) FROM atomicloop_runs {where}", params)
+                total = cur.fetchone()["count"]
+                cur.execute(
+                    f"""
+                    SELECT id, technique_id, test_number, test_name, executor_type,
+                           exit_code, executed_at, duration_ms, event_count,
+                           detection_fired, dry_run, created_at
+                    FROM atomicloop_runs {where}
+                    ORDER BY executed_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    params + [per_page, offset],
+                )
+                items = [dict(r) for r in cur.fetchall()]
 
         return {
-            "items":    [dict(r) for r in rows],
+            "items":    items,
             "total":    total,
             "page":     page,
             "per_page": per_page,
@@ -170,12 +143,18 @@ class RunStorage:
 
     def delete_run(self, run_id: str) -> bool:
         with self._get_conn() as conn:
-            cur = conn.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM atomicloop_runs WHERE id = %s", (run_id,)
+                )
+                deleted = cur.rowcount > 0
             conn.commit()
-        return cur.rowcount > 0
+        return deleted
 
     def clear_all(self) -> int:
         with self._get_conn() as conn:
-            cur = conn.execute("DELETE FROM runs")
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM atomicloop_runs")
+                count = cur.rowcount
             conn.commit()
-        return cur.rowcount
+        return count
