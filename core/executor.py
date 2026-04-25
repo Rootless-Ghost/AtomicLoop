@@ -141,6 +141,20 @@ def _is_allowed_atomic_command(command: str, executor_type: str) -> bool:
     return False
 
 
+def _is_safe_command_text(command: str) -> bool:
+    """
+    Conservative command text validation for interpreter-backed executors.
+    Reject control characters and common command-chaining metacharacters.
+    """
+    if not isinstance(command, str) or not command.strip():
+        return False
+    if any(ord(ch) < 32 for ch in command):
+        return False
+    if re.search(r"[;&|`$()<>]", command):
+        return False
+    return True
+
+
 def execute(
     command:       str,
     executor_type: str,
@@ -170,6 +184,13 @@ def execute(
         return ExecutionResult(
             command=command,
             error="Command is not in the embedded atomic allowlist.",
+        )
+
+    if not _is_safe_command_text(command):
+        logger.warning("Rejected unsafe command text for executor=%s", executor_type)
+        return ExecutionResult(
+            command=command,
+            error="Command contains unsafe characters and was rejected.",
         )
 
     if dry_run:
