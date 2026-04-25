@@ -279,7 +279,7 @@ class AtomicEngine:
             )
             run["detection_fired"] = result["detection_fired"]
             run["validation"]      = result
-            self.storage.save_run({**run, "id": None})  # save updated copy
+            self.storage.update_run_validation(run_id, run)
         else:
             events = events or []
             result = validate_detection(

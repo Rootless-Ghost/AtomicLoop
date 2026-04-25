@@ -76,6 +76,40 @@ class RunStorage:
         )
         return run
 
+    def update_run_validation(self, run_id: str, run: dict) -> bool:
+        """Update detection_fired and run_json for an existing run in-place."""
+        detection_fired_raw = run.get("detection_fired")
+        if detection_fired_raw is True:
+            detection_fired_int = 1
+        elif detection_fired_raw is False:
+            detection_fired_int = 0
+        else:
+            detection_fired_int = -1
+
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE atomicloop_runs
+                       SET detection_fired = %s,
+                           run_json        = %s
+                     WHERE id = %s
+                    """,
+                    (
+                        detection_fired_int,
+                        json.dumps(run, ensure_ascii=False),
+                        run_id,
+                    ),
+                )
+                updated = cur.rowcount > 0
+            conn.commit()
+
+        if updated:
+            logger.info("Updated validation for run %s (detection_fired=%s)", run_id, detection_fired_raw)
+        else:
+            logger.warning("update_run_validation: run %s not found", run_id)
+        return updated
+
     # ── Read ───────────────────────────────────────────────────────────────────
 
     def get_run(self, run_id: str) -> dict | None:
