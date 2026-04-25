@@ -78,6 +78,14 @@ def load_config(path: str) -> dict:
 app      = Flask(__name__)
 _config: dict          = {}
 _engine: AtomicEngine  = None  # type: ignore
+
+
+@app.after_request
+def _set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 _API_KEY: str          = os.environ.get("ATOMICLOOP_API_KEY", "")
 
 
