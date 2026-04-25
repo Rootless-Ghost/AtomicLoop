@@ -14,6 +14,7 @@ import io
 import json
 import logging
 import os
+import sys
 
 import yaml
 from flask import Flask, jsonify, render_template, request, send_file
@@ -85,17 +86,18 @@ def create_app(config_path: str = "config.yaml") -> Flask:
     _config = load_config(config_path)
     _engine = AtomicEngine(_config)
     if not _API_KEY:
-        logger.warning(
-            "ATOMICLOOP_API_KEY is not set — /execute is unauthenticated. "
-            "Set this env var to require an API key on that route."
+        logger.error(
+            "ATOMICLOOP_API_KEY is not set — refusing to start. "
+            "Set this env var to an API key before launching AtomicLoop."
         )
+        sys.exit(1)
     return app
 
 
 def _check_api_key() -> bool:
-    """Return True if no API key is configured, or the request header matches."""
+    """Return True only when the request header matches the configured API key."""
     if not _API_KEY:
-        return True
+        return False
     return request.headers.get("X-API-Key", "") == _API_KEY
 
 
@@ -166,6 +168,9 @@ def api_run():
 
     Returns full run result including events and execution output.
     """
+    if not _check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
+
     body = request.get_json(silent=True) or {}
 
     technique_id    = str(body.get("technique_id", "")).strip().upper()

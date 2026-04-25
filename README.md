@@ -135,7 +135,7 @@ python cli.py --results
 | GET    | `/api/health`                     | Health check |
 | GET    | `/api/atomics`                    | List all techniques |
 | GET    | `/api/atomics/<technique_id>`     | Get tests for a technique |
-| POST   | `/api/run`                        | Execute an atomic test (engine path) |
+| POST   | `/api/run`                        | Execute an atomic test (engine path) — API key required. |
 | POST   | `/api/validate`                   | Validate Sigma rule against events |
 | GET    | `/api/results`                    | List past runs (paginated) |
 | GET    | `/api/result/<run_id>`            | Get a single run |
@@ -176,9 +176,9 @@ python cli.py --results
 
 ### POST /execute
 
-Executes an allowlisted atomic command directly — locally or on a remote Windows host via WinRM. Protected by `ATOMICLOOP_API_KEY` when that env var is set (see [Environment variables](#environment-variables)).
+Executes an allowlisted atomic command directly — locally or on a remote Windows host via WinRM. Protected by `ATOMICLOOP_API_KEY` — required at startup (see [Environment variables](#environment-variables)).
 
-**Request headers (when API key is configured):**
+**Request headers (required):**
 ```
 X-API-Key: <your-key>
 Content-Type: application/json
@@ -359,7 +359,7 @@ PowerShell (Windows: `powershell.exe`) or PowerShell Core (Linux/macOS: `pwsh`) 
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ATOMICLOOP_API_KEY` | No | Shared secret required in the `X-API-Key` header on all `POST /execute` requests. If unset, the route is unauthenticated (suitable for local testing only). A warning is logged at startup when the variable is absent. |
+| `ATOMICLOOP_API_KEY` | Yes | Required. Shared secret for the `X-API-Key` header on `POST /execute` and `POST /api/run`. The app will not start if this variable is unset. Set it in your `.env` file for Docker or as an environment variable for standalone runs. |
 
 ```bash
 # Example — set before starting the server
@@ -388,8 +388,9 @@ AtomicLoop includes several controls to prevent accidental execution:
 3. **`require_confirm: true`** (config) — server-enforced gate on all live executions.
 4. **Timeout** — hard kill after N seconds (default 30). Applied to both local processes and WinRM sessions.
 5. **Atomic allowlist** — `/execute` only dispatches commands that appear verbatim in the embedded MITRE technique library. Arbitrary commands are rejected.
-6. **`ATOMICLOOP_API_KEY`** — when set, `/execute` requires a matching `X-API-Key` header. All other routes are unaffected.
-7. **`cleanup_command`** — each test includes a cleanup command. Run it after testing.
+6. **`ATOMICLOOP_API_KEY`** — required to start the server. Both `/execute` and `/api/run` require a matching `X-API-Key` header. The app exits at startup if this variable is not set.
+7. **API key setup** — set `ATOMICLOOP_API_KEY` in your `.env` file (Docker) or as a terminal environment variable (standalone). Generate a key with: `python -c "import secrets; print(secrets.token_hex(32))"`
+8. **`cleanup_command`** — each test includes a cleanup command. Run it after testing.
 
 ---
 
