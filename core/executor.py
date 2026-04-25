@@ -294,14 +294,26 @@ def _build_command(command: str, executor_type: str) -> list[str] | None:
     if executor_type == "cmd":
         if system == "windows":
             return ["cmd.exe", "/c", command]
-        # Fall back to sh on non-Windows
-        return ["sh", "-c", command]
+        # Fall back to direct execution on non-Windows (avoid shell -c)
+        try:
+            argv = shlex.split(command, posix=True)
+        except ValueError:
+            return None
+        return argv or None
 
     if executor_type == "bash":
-        return ["bash", "-c", command]
+        try:
+            argv = shlex.split(command, posix=True)
+        except ValueError:
+            return None
+        return argv or None
 
     if executor_type == "sh":
-        return ["sh", "-c", command]
+        try:
+            argv = shlex.split(command, posix=True)
+        except ValueError:
+            return None
+        return argv or None
 
     return None
 
