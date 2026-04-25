@@ -236,7 +236,7 @@ def execute_route():
     if not _check_api_key():
         return jsonify({"error": "unauthorized"}), 401
 
-    from core.executor import execute
+    from core.executor import execute, _is_allowed_atomic_command
     from core.remote_executor import execute_remote_winrm
 
     body = request.get_json(silent=True) or {}
@@ -252,6 +252,12 @@ def execute_route():
 
     if not command:
         return jsonify({"success": False, "error": "command is required"}), 400
+
+    if not _is_allowed_atomic_command(command, executor_type):
+        return jsonify({
+            "success": False,
+            "error": "command is not in the embedded atomic allowlist for this executor",
+        }), 400
 
     if transport == "winrm":
         if not target_host:
