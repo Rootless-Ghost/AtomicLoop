@@ -142,21 +142,11 @@ def execute_remote_winrm(
 
     # ── Build PSSession wrapper ───────────────────────────────────────────────
 
-    # PS single-quote escape: ' → ''  (belt-and-suspenders; host already
-    # validated above, but applied in case the regex is ever relaxed).
-    safe_host = target_host.replace("'", "''")
-
-    cred_block = ""
-    session_cred_flag = ""
+    username_arg = ""
+    password_arg = ""
     if credential:
-        username = str(credential.get("username", "")).replace("'", "''")
-        password = str(credential.get("password", "")).replace("'", "''")
-        cred_block = (
-            f"$_cred = New-Object System.Management.Automation.PSCredential("
-            f"'{username}', "
-            f"(ConvertTo-SecureString '{password}' -AsPlainText -Force)); "
-        )
-        session_cred_flag = " -Credential $_cred"
+        username_arg = str(credential.get("username", ""))
+        password_arg = str(credential.get("password", ""))
 
     # Enforce allowlist before embedding into PowerShell -Command payload.
     if not _is_allowed_atomic_command(command):
@@ -181,19 +171,32 @@ def execute_remote_winrm(
         )
 
     ps_script = (
-        f"{cred_block}"
-        f"$_s = New-PSSession -ComputerName '{safe_host}'{session_cred_flag}; "
+        "param([string]$ComputerName, [string]$Username, [string]$Password) "
+        "if ($Username) { "
+        "  $_cred = New-Object System.Management.Automation.PSCredential("
+        "    $Username, (ConvertTo-SecureString $Password -AsPlainText -Force)"
+        "  ); "
+        "  $_s = New-PSSession -ComputerName $ComputerName -Credential $_cred; "
+        "} else { "
+        "  $_s = New-PSSession -ComputerName $ComputerName; "
+        "} "
         f"Invoke-Command -Session $_s -ScriptBlock {{ {resolved_command} }}; "
-        f"Remove-PSSession -Session $_s"
+        "Remove-PSSession -Session $_s"
     )
 
     # ── Dispatch ──────────────────────────────────────────────────────────────
 
     system = platform.system().lower()
     if system == "windows":
-        cmd_list = ["powershell.exe", "-NonInteractive", "-NoProfile", "-Command", ps_script]
+        cmd_list = [
+            "powershell.exe", "-NonInteractive", "-NoProfile", "-Command", ps_script,
+            "-ComputerName", target_host, "-Username", username_arg, "-Password", password_arg,
+        ]
     else:
-        cmd_list = ["pwsh", "-NonInteractive", "-NoProfile", "-Command", ps_script]
+        cmd_list = [
+            "pwsh", "-NonInteractive", "-NoProfile", "-Command", ps_script,
+            "-ComputerName", target_host, "-Username", username_arg, "-Password", password_arg,
+        ]
 
     logger.info(
         "WinRM remote exec: target=%s executor=%s timeout=%ds",
