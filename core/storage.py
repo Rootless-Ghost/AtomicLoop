@@ -14,6 +14,8 @@ from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
+from contextlib import contextmanager
+from psycopg2.pool import ThreadedConnectionPool
 
 logger = logging.getLogger("atomicloop.storage")
 
@@ -21,10 +23,19 @@ logger = logging.getLogger("atomicloop.storage")
 class RunStorage:
 
     def __init__(self, db_path: str = "./atomicloop.db"):
-        self._url = os.environ.get("DATABASE_URL") or db_path
+        url = os.environ.get("DATABASE_URL") or db_path
+        self._pool = ThreadedConnectionPool(minconn=1, maxconn=10, dsn=url)
 
+    @contextmanager
     def _get_conn(self):
-        return psycopg2.connect(self._url)
+        conn = self._pool.getconn()
+        try:
+            yield conn
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._pool.putconn(conn)
 
     # ── Write ──────────────────────────────────────────────────────────────────
 
