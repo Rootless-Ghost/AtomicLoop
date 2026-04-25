@@ -50,7 +50,7 @@ import re
 import subprocess
 import time
 
-from .executor import ExecutionResult, _is_allowed_atomic_command  # noqa: PLC2701
+from .executor import ExecutionResult, _is_allowed_atomic_command, _validate_atomic_guid  # noqa: PLC2701
 
 logger = logging.getLogger("atomicloop.remote_executor")
 
@@ -197,6 +197,16 @@ def execute_remote_winrm(
             "pwsh", "-NonInteractive", "-NoProfile", "-Command", ps_script,
             "-ComputerName", target_host, "-Username", username_arg, "-Password", password_arg,
         ]
+
+    if _validate_atomic_guid(command, executor_type) is None:
+        logger.warning(
+            "WinRM rejected command: GUID allowlist validation failed executor=%s target=%s",
+            executor_type, target_host,
+        )
+        return ExecutionResult(
+            command=command,
+            error="Command GUID failed allowlist validation.",
+        )
 
     logger.info(
         "WinRM remote exec: target=%s executor=%s timeout=%ds",

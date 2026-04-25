@@ -29,6 +29,10 @@ DEFAULT_TIMEOUT = 30
 _PLACEHOLDER_RE = re.compile(r"#\{([A-Za-z0-9_]+)\}")
 _MAX_SUBST_LEN = 500
 
+_ATOMIC_GUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+
 
 @dataclass
 class ExecutionResult:
@@ -155,6 +159,30 @@ def _is_safe_command_text(command: str) -> bool:
     return True
 
 
+def _validate_atomic_guid(command: str, executor_type: str) -> str | None:
+    """
+    Look up the matching atomic test in ATOMICS and return its
+    auto_generated_guid only if it satisfies the canonical GUID format.
+    Returns None if no match is found or the stored GUID is malformed.
+    """
+    try:
+        from .atomics import ATOMICS
+    except Exception:
+        return None
+    et = (executor_type or "").lower().strip()
+    for technique in ATOMICS.values():
+        for test in technique.get("tests", []):
+            if str(test.get("executor_type", "")).lower().strip() != et:
+                continue
+            test_cmd = test.get("command")
+            cleanup_cmd = test.get("cleanup_command")
+            if command == test_cmd or (cleanup_cmd is not None and command == cleanup_cmd):
+                guid = test.get("auto_generated_guid", "")
+                if _ATOMIC_GUID_RE.match(guid):
+                    return guid
+    return None
+
+
 def execute(
     command:       str,
     executor_type: str,
@@ -220,6 +248,13 @@ def execute(
         return ExecutionResult(
             command=command,
             error=f"Unsupported executor type: {executor_type!r}",
+        )
+
+    if _validate_atomic_guid(command, executor_type) is None:
+        logger.warning("Rejected command: GUID allowlist validation failed executor=%s", executor_type)
+        return ExecutionResult(
+            command=command,
+            error="Command GUID failed allowlist validation.",
         )
 
     logger.info("Executing: executor=%s timeout=%ds cmd=%s", executor_type, timeout, command[:80])
