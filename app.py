@@ -241,7 +241,13 @@ def execute_route():
 
     body = request.get_json(silent=True) or {}
 
-    command       = str(body.get("command", "")).strip()
+    # Resolve executable command from a server-side allowlist key, not raw user command text.
+    command_catalog = {
+        # command_id: command_literal
+        # Populate with supported atomic commands exposed by this API.
+    }
+    command_id    = str(body.get("command_id", "")).strip()
+    command       = command_catalog.get(command_id, "")
     executor_type = str(body.get("executor_type", "powershell")).strip().lower()
     target_host   = str(body.get("target_host", "")).strip()
     transport     = str(body.get("transport", "")).strip().lower()
@@ -250,8 +256,11 @@ def execute_route():
     timeout       = int(timeout_raw) if timeout_raw is not None else 30
     dry_run       = bool(body.get("dry_run", False))
 
+    if not command_id:
+        return jsonify({"success": False, "error": "command_id is required"}), 400
+
     if not command:
-        return jsonify({"success": False, "error": "command is required"}), 400
+        return jsonify({"success": False, "error": "unknown command_id"}), 400
 
     if not _is_allowed_atomic_command(command, executor_type):
         return jsonify({
