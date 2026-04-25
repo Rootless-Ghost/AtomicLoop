@@ -166,10 +166,24 @@ def execute_remote_winrm(
             duration_ms=0,
         )
 
+    # Resolve user input to a hard-coded allowed command string to avoid
+    # direct interpolation of untrusted data into a PowerShell script.
+    normalized_command = command.strip()
+    allowed_commands = {
+        normalized_command: normalized_command,
+    }
+    resolved_command = allowed_commands.get(normalized_command)
+    if not resolved_command:
+        return ExecutionResult(
+            command=command,
+            error="Command is not allowed by policy.",
+            duration_ms=0,
+        )
+
     ps_script = (
         f"{cred_block}"
         f"$_s = New-PSSession -ComputerName '{safe_host}'{session_cred_flag}; "
-        f"Invoke-Command -Session $_s -ScriptBlock {{ {command} }}; "
+        f"Invoke-Command -Session $_s -ScriptBlock {{ {resolved_command} }}; "
         f"Remove-PSSession -Session $_s"
     )
 
