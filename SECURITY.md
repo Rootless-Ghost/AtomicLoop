@@ -29,8 +29,9 @@ systems or exposed to the internet.
   safety control — do not disable `require_confirm` in config.yaml unless you
   have implemented your own access control layer.
 
-- **Network exposure**: AtomicLoop binds to 127.0.0.1 by default. Never bind
-  to 0.0.0.0 or expose the API to a network without authentication and TLS.
+- **Network exposure**: AtomicLoop binds to `127.0.0.1` by default. To expose
+  it across a network (Docker, cross-VM lab), pass `--host 0.0.0.0` explicitly.
+  Never expose the API to an untrusted network without authentication and TLS.
 
 - **Admin tests**: Tests marked `required_permissions: administrator` must be
   run in a dedicated lab environment. They modify system configuration and

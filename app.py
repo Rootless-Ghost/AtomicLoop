@@ -373,6 +373,9 @@ def api_validate():
         "gap_analysis": "narrative"
       }
     """
+    if not _check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
+
     body = request.get_json(silent=True) or {}
 
     run_id     = body.get("run_id", "").strip() or None
@@ -426,6 +429,8 @@ def api_result(run_id: str):
 
 @app.route("/api/result/<run_id>", methods=["DELETE"])
 def api_result_delete(run_id: str):
+    if not _check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
     deleted = _engine.delete_result(run_id)
     if not deleted:
         return jsonify({"success": False, "error": "Run not found"}), 404
@@ -469,6 +474,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="AtomicLoop — Atomic Red Team Test Runner")
     p.add_argument("--config",    default="config.yaml")
     p.add_argument("--port",      type=int, default=None)
+    p.add_argument("--host",      default="127.0.0.1",
+                   help="Bind address (default 127.0.0.1). Use 0.0.0.0 for Docker/cross-VM.")
     p.add_argument("--debug",     action="store_true")
     p.add_argument("--log-level", default="INFO",
                    choices=["DEBUG", "INFO", "WARNING", "ERROR"])
@@ -480,8 +487,8 @@ def main() -> None:
     logging.getLogger().setLevel(args.log_level)
     create_app(args.config)
     port = args.port if args.port is not None else int(_config.get("port", 5011))
-    logger.info("AtomicLoop starting on http://0.0.0.0:%d", port)
-    app.run(debug=args.debug, host="0.0.0.0", port=port)
+    logger.info("AtomicLoop starting on http://%s:%d", args.host, port)
+    app.run(debug=args.debug, host=args.host, port=port)
 
 
 if __name__ == "__main__":

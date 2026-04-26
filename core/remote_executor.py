@@ -181,10 +181,11 @@ def execute_remote_winrm(
         )
 
     ps_script = (
-        "param([string]$ComputerName, [string]$Username, [string]$Password) "
+        "param([string]$ComputerName, [string]$Username) "
+        "$_pw = [Console]::In.ReadLine(); "
         "if ($Username) { "
         "  $_cred = New-Object System.Management.Automation.PSCredential("
-        "    $Username, (ConvertTo-SecureString $Password -AsPlainText -Force)"
+        "    $Username, (ConvertTo-SecureString $_pw -AsPlainText -Force)"
         "  ); "
         "  $_s = New-PSSession -ComputerName $ComputerName -Credential $_cred; "
         "} else { "
@@ -243,12 +244,12 @@ def execute_remote_winrm(
     if system == "windows":
         cmd_list = [
             "powershell.exe", "-NonInteractive", "-NoProfile", "-Command", ps_script,
-            "-ComputerName", safe_target_host, "-Username", username_arg, "-Password", password_arg,
+            "-ComputerName", safe_target_host, "-Username", username_arg,
         ]
     else:
         cmd_list = [
             "pwsh", "-NonInteractive", "-NoProfile", "-Command", ps_script,
-            "-ComputerName", safe_target_host, "-Username", username_arg, "-Password", password_arg,
+            "-ComputerName", safe_target_host, "-Username", username_arg,
         ]
 
     logger.info(
@@ -260,6 +261,7 @@ def execute_remote_winrm(
     try:
         proc = subprocess.run(
             cmd_list,
+            input=password_arg,
             capture_output=True,
             text=True,
             timeout=timeout,
