@@ -175,6 +175,14 @@ def execute_remote_winrm(
 
     # ── Dispatch ──────────────────────────────────────────────────────────────
 
+    target_host = str(target_host or "").strip()
+    if not _HOST_RE.fullmatch(target_host):
+        return ExecutionResult(
+            command=command,
+            error="Invalid target_host: must be a valid hostname, IPv4, or IPv6 literal.",
+            duration_ms=0,
+        )
+
     system = platform.system().lower()
     if system == "windows":
         cmd_list = [
