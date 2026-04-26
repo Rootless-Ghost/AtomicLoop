@@ -68,6 +68,26 @@ _HOST_RE = re.compile(
 )
 
 
+def _sanitize_target_host(value: str) -> str:
+    """
+    Return a safe canonical ComputerName value (IPv4/IPv6 literal or RFC1123 hostname).
+    Raise ValueError when input is invalid.
+    """
+    host = str(value or "").strip()
+    if not host:
+        raise ValueError("empty host")
+
+    try:
+        return str(ipaddress.ip_address(host))
+    except ValueError:
+        if not _HOST_RE.fullmatch(host):
+            raise ValueError("host contains invalid characters")
+        labels = host.split(".")
+        if any(not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?", lb) for lb in labels):
+            raise ValueError("invalid hostname label")
+        return host
+
+
 def execute_remote_winrm(
     command: str,
     executor_type: str,
@@ -210,23 +230,30 @@ def execute_remote_winrm(
             )
         normalized_host = target_host
 
-    target_host = normalized_host
+    try:
+        safe_target_host = _sanitize_target_host(normalized_host)
+    except ValueError:
+        return ExecutionResult(
+            command=command,
+            error="Invalid target_host: must be a valid hostname, IPv4, or IPv6 literal.",
+            duration_ms=0,
+        )
 
     system = platform.system().lower()
     if system == "windows":
         cmd_list = [
             "powershell.exe", "-NonInteractive", "-NoProfile", "-Command", ps_script,
-            "-ComputerName", target_host, "-Username", username_arg, "-Password", password_arg,
+            "-ComputerName", safe_target_host, "-Username", username_arg, "-Password", password_arg,
         ]
     else:
         cmd_list = [
             "pwsh", "-NonInteractive", "-NoProfile", "-Command", ps_script,
-            "-ComputerName", target_host, "-Username", username_arg, "-Password", password_arg,
+            "-ComputerName", safe_target_host, "-Username", username_arg, "-Password", password_arg,
         ]
 
     logger.info(
         "WinRM remote exec: target=%s executor=%s timeout=%ds",
-        target_host, executor_type, timeout,
+        safe_target_host, executor_type, timeout,
     )
     start = time.monotonic()
 
