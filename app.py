@@ -11,9 +11,11 @@ Usage:
 
 import argparse
 import io
+import ipaddress
 import json
 import logging
 import os
+import re
 import sys
 
 import yaml
@@ -28,6 +30,34 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
 )
+
+_HOST_RE = re.compile(
+    r"^(?:"
+    r"[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?))*"
+    r"|(?:\d{1,3}\.){3}\d{1,3}"
+    r"|[0-9A-Fa-f:]{2,39}"
+    r")$"
+)
+
+
+def _is_valid_target_host(value: str) -> bool:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return False
+    try:
+        ipaddress.ip_address(candidate)
+        return True
+    except ValueError:
+        if not _HOST_RE.match(candidate):
+            return False
+        labels = candidate.split(".")
+        return all(
+            1 <= len(label) <= 63
+            and label[0] != "-"
+            and label[-1] != "-"
+            for label in labels
+        )
 logger = logging.getLogger("atomicloop")
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -281,6 +311,11 @@ def execute_route():
             return jsonify({
                 "success": False,
                 "error": "target_host is required when transport is 'winrm'",
+            }), 400
+        if not _is_valid_target_host(target_host):
+            return jsonify({
+                "success": False,
+                "error": "Invalid target_host: must be a valid hostname, IPv4, or IPv6 literal.",
             }), 400
         result = execute_remote_winrm(
             command=command,
