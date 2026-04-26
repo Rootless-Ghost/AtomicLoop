@@ -35,6 +35,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "d3a1b2c4-e5f6-4789-8abc-def012345678",
                 "test_number": 1,
                 "test_name": "PowerShell Encoded Command Execution",
                 "description": (
@@ -57,6 +58,7 @@ ATOMICS: dict[str, dict] = {
                 "input_arguments": {},
             },
             {
+                "auto_generated_guid": "e4b2c3d5-f6a7-4890-9bcd-ef0123456789",
                 "test_number": 2,
                 "test_name": "PowerShell Download Cradle Simulation",
                 "description": (
@@ -86,6 +88,7 @@ ATOMICS: dict[str, dict] = {
                 },
             },
             {
+                "auto_generated_guid": "f5c3d4e6-a7b8-4901-abde-f01234567890",
                 "test_number": 3,
                 "test_name": "PowerShell ExecutionPolicy Bypass",
                 "description": (
@@ -117,6 +120,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "a6d4e5f7-b8c9-4012-bcef-012345678901",
                 "test_number": 1,
                 "test_name": "Command Execution via cmd.exe",
                 "description": (
@@ -134,6 +138,7 @@ ATOMICS: dict[str, dict] = {
                 "input_arguments": {},
             },
             {
+                "auto_generated_guid": "b7e5f6a8-c9d0-4123-cdf0-123456789012",
                 "test_number": 2,
                 "test_name": "Batch Script Execution via cmd",
                 "description": (
@@ -170,6 +175,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "c8f6a7b9-d0e1-4234-de01-234567890123",
                 "test_number": 1,
                 "test_name": "Remote Thread Creation via PowerShell (Simulation)",
                 "description": (
@@ -216,6 +222,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "d9a7b8c0-e1f2-4345-ef12-345678901234",
                 "test_number": 1,
                 "test_name": "LSASS Memory Dump via comsvcs.dll",
                 "description": (
@@ -259,6 +266,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "e0b8c9d1-f2a3-4456-f023-456789012345",
                 "test_number": 1,
                 "test_name": "System Information Enumeration via systeminfo",
                 "description": (
@@ -276,6 +284,7 @@ ATOMICS: dict[str, dict] = {
                 "input_arguments": {},
             },
             {
+                "auto_generated_guid": "f1c9d0e2-a3b4-4567-0134-567890123456",
                 "test_number": 2,
                 "test_name": "Environment Variable Enumeration",
                 "description": (
@@ -307,6 +316,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "a2d0e1f3-b4c5-4678-1245-678901234567",
                 "test_number": 1,
                 "test_name": "File Discovery via dir Command",
                 "description": (
@@ -349,6 +359,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "b3e1f2a4-c5d6-4789-2356-789012345678",
                 "test_number": 1,
                 "test_name": "Process Enumeration via tasklist",
                 "description": (
@@ -381,6 +392,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "c4f2a3b5-d6e7-489a-3467-890123456789",
                 "test_number": 1,
                 "test_name": "Local Groups and Membership Enumeration",
                 "description": (
@@ -412,6 +424,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "d5a3b4c6-e7f8-49ab-4578-901234567890",
                 "test_number": 1,
                 "test_name": "Enable RDP via Registry Modification",
                 "description": (
@@ -450,6 +463,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "e6b4c5d7-f8a9-4abc-5689-012345678901",
                 "test_number": 1,
                 "test_name": "SMB Share Enumeration via net view",
                 "description": (
@@ -487,6 +501,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "f7c5d6e8-a9b0-4bcd-679a-123456789012",
                 "test_number": 1,
                 "test_name": "Persistence via HKCU Run Key",
                 "description": (
@@ -537,6 +552,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "a8d6e7f9-b0c1-4cde-78ab-234567890123",
                 "test_number": 1,
                 "test_name": "Scheduled Task Creation via schtasks",
                 "description": (
@@ -582,6 +598,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "b9e7f8a0-c1d2-4def-89bc-345678901234",
                 "test_number": 1,
                 "test_name": "Clear Windows Event Log via wevtutil",
                 "description": (
@@ -621,6 +638,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "c0f8a9b1-d2e3-4ef0-9acd-456789012345",
                 "test_number": 1,
                 "test_name": "Registry Modification via reg.exe",
                 "description": (
@@ -666,6 +684,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "d1a9b0c2-e3f4-4f01-abde-567890123456",
                 "test_number": 1,
                 "test_name": "Base64 Encoded PowerShell Payload",
                 "description": (
@@ -710,6 +729,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "e2b0c1d3-f4a5-4012-bcef-678901234567",
                 "test_number": 1,
                 "test_name": "Disable Windows Defender Real-Time Protection",
                 "description": (
@@ -743,6 +763,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "f3c1d2e4-a5b6-4123-cdf0-789012345678",
                 "test_number": 1,
                 "test_name": "Malicious HTA Execution via mshta.exe",
                 "description": (
@@ -780,6 +801,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "a4d2e3f5-b6c7-4234-de01-890123456789",
                 "test_number": 1,
                 "test_name": "Local Account Enumeration via net user",
                 "description": (
@@ -813,6 +835,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "b5e3f4a6-c7d8-4345-ef12-901234567890",
                 "test_number": 1,
                 "test_name": "Local Account Password Guessing via net use",
                 "description": (
@@ -870,6 +893,7 @@ ATOMICS: dict[str, dict] = {
         ),
         "tests": [
             {
+                "auto_generated_guid": "c6f4a5b7-d8e9-4456-f023-012345678901",
                 "test_number": 1,
                 "test_name": "HTTP Parameter Fuzzing via curl (Simulated)",
                 "description": (

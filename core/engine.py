@@ -34,7 +34,7 @@ class AtomicEngine:
 
     def __init__(self, config: dict):
         self.config      = config
-        self.storage     = RunStorage(config.get("db_path", "./atomicloop.db"))
+        self.storage     = RunStorage(database_url=config.get("db_path", "./atomicloop.db"))
         exec_cfg         = config.get("execution", {})
         self.default_timeout   = int(exec_cfg.get("timeout", DEFAULT_TIMEOUT))
         self.default_confirm   = bool(exec_cfg.get("require_confirm", DEFAULT_CONFIRM_REQUIRED))

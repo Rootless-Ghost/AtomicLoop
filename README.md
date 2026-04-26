@@ -44,7 +44,7 @@ Write Sigma rule → Simulate attack (AtomicLoop) → Capture events (LogNorm)
 - **LogNorm integration** — normalizes captured events to ECS-lite format (port 5006)
 - **DriftWatch integration** — validates Sigma rules against captured events (port 5008)
 - **Gap analysis** — explains exactly why a detection fired or missed
-- **Persistent history** — SQLite session library with search, export, and delete
+- **Persistent history** — SQLite (default, zero-config) or PostgreSQL run library with search, export, and delete
 - **CLI** — offline operation without the web UI
 
 ---
@@ -348,7 +348,7 @@ PowerShell (Windows: `powershell.exe`) or PowerShell Core (Linux/macOS: `pwsh`) 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `port` | `5011` | HTTP port |
-| `db_path` | `./atomicloop.db` | SQLite database |
+| `db_path` | `./atomicloop.db` | SQLite file path (used when `DATABASE_URL` is not set) |
 | `execution.timeout` | `30` | Default execution timeout (seconds) |
 | `execution.require_confirm` | `true` | Require explicit confirm flag |
 | `execution.auto_save` | `true` | Persist every run automatically |
@@ -360,6 +360,7 @@ PowerShell (Windows: `powershell.exe`) or PowerShell Core (Linux/macOS: `pwsh`) 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ATOMICLOOP_API_KEY` | Yes | Required. Shared secret for the `X-API-Key` header on `POST /execute` and `POST /api/run`. The app will not start if this variable is unset. Set it in your `.env` file for Docker or as an environment variable for standalone runs. |
+| `DATABASE_URL` | No | PostgreSQL connection string (e.g. `postgresql://user:pass@host:5432/db`). When unset, AtomicLoop uses the SQLite file specified by `db_path` in `config.yaml`. |
 
 ```bash
 # Example — set before starting the server

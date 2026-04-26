@@ -1,6 +1,8 @@
 /* AtomicLoop — main.js */
 'use strict';
 
+const _API_KEY = document.querySelector('meta[name="al-api-key"]')?.content || '';
+
 // ── Globals ───────────────────────────────────────────────────────────────────
 
 let _allTechniques = [];
@@ -284,7 +286,7 @@ async function runTest() {
     try {
         const resp = await fetch('/api/run', {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': _API_KEY },
             body:    JSON.stringify({
                 technique_id:    _selectedTech.technique_id,
                 test_number:     _selectedTest.test_number,

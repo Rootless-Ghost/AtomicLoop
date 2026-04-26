@@ -9,7 +9,7 @@ db_path: ./atomicloop.db
 execution:
   timeout:         30      # Default execution timeout (seconds)
   require_confirm: true    # Require confirm=true in API body to execute
-  auto_save:       true    # Persist every run to SQLite
+  auto_save:       true    # Persist every run automatically (SQLite or PostgreSQL)
   max_events:      500     # Max events to collect per run
 
 # ── Integration URLs ────────────────────────────────────

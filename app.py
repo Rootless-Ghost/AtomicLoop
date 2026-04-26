@@ -119,6 +119,11 @@ def _set_security_headers(response):
 _API_KEY: str          = os.environ.get("ATOMICLOOP_API_KEY", "")
 
 
+@app.context_processor
+def _inject_api_key():
+    return {"api_key": _API_KEY}
+
+
 def create_app(config_path: str = "config.yaml") -> Flask:
     global _config, _engine
     _config = load_config(config_path)

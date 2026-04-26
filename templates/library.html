@@ -178,7 +178,7 @@ function renderRuns(data, firedFilter) {
 
 async function deleteRun(runId, btn) {
     if (!confirm('Delete this run?')) return;
-    const resp = await fetch('/api/result/' + runId, {method:'DELETE'});
+    const resp = await fetch('/api/result/' + runId, {method:'DELETE', headers:{'X-API-Key': _API_KEY}});
     if (resp.ok) { btn.closest('tr').remove(); }
     else { alert('Delete failed.'); }
 }

@@ -39,8 +39,10 @@ systems or exposed to the internet.
 - **Cleanup commands**: Always run cleanup commands after testing to restore
   system state. AtomicLoop does not run cleanup automatically.
 
-- **SQLite database** (`atomicloop.db`): Contains all test run artifacts
-  including command outputs. Ensure it is not readable by untrusted users.
+- **Run database**: Contains all test run artifacts including command outputs.
+  For SQLite (`atomicloop.db`), restrict filesystem permissions so untrusted
+  users cannot read the file. For PostgreSQL, restrict `SELECT` grants on the
+  `atomicloop_runs` table to the application role only.
 
 - **Flask debug mode**: Never use `debug: true` in production.
 
