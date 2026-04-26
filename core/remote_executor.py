@@ -44,6 +44,7 @@ Mitigation applied in this module:
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import platform
 import re
@@ -176,12 +177,40 @@ def execute_remote_winrm(
     # ── Dispatch ──────────────────────────────────────────────────────────────
 
     target_host = str(target_host or "").strip()
-    if not _HOST_RE.fullmatch(target_host):
-        return ExecutionResult(
-            command=command,
-            error="Invalid target_host: must be a valid hostname, IPv4, or IPv6 literal.",
-            duration_ms=0,
+    normalized_host = ""
+    try:
+        # Canonicalize literal IPs (IPv4 / IPv6)
+        normalized_host = str(ipaddress.ip_address(target_host))
+    except ValueError:
+        # Validate hostname labels (RFC 1123-style)
+        if (
+            not target_host
+            or len(target_host) > 253
+            or target_host.endswith(".")
+            or not _HOST_RE.fullmatch(target_host)
+        ):
+            return ExecutionResult(
+                command=command,
+                error="Invalid target_host: must be a valid hostname, IPv4, or IPv6 literal.",
+                duration_ms=0,
+            )
+        labels = target_host.split(".")
+        label_ok = all(
+            1 <= len(lbl) <= 63
+            and lbl[0].isalnum()
+            and lbl[-1].isalnum()
+            and all(ch.isalnum() or ch == "-" for ch in lbl)
+            for lbl in labels
         )
+        if not label_ok:
+            return ExecutionResult(
+                command=command,
+                error="Invalid target_host: must be a valid hostname, IPv4, or IPv6 literal.",
+                duration_ms=0,
+            )
+        normalized_host = target_host
+
+    target_host = normalized_host
 
     system = platform.system().lower()
     if system == "windows":
