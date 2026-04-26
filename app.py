@@ -17,9 +17,12 @@ import logging
 import os
 import re
 import sys
+import uuid
 
 import yaml
 from flask import Flask, jsonify, render_template, request, send_file
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from core.engine import AtomicEngine
 
@@ -109,12 +112,32 @@ app      = Flask(__name__)
 _config: dict          = {}
 _engine: AtomicEngine  = None  # type: ignore
 
+# Per-worker in-memory store — with 2 Gunicorn workers a client effectively
+# gets 2× the stated limit. For cross-worker enforcement replace "memory://"
+# with "redis://localhost:6379" and add redis to requirements.txt.
+_limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri="memory://",
+)
+
 
 @app.after_request
 def _set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "img-src 'self' data:; "
+        "frame-ancestors 'none'"
+    )
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 _API_KEY: str          = os.environ.get("ATOMICLOOP_API_KEY", "")
 
@@ -144,6 +167,14 @@ def _check_api_key() -> bool:
     return request.headers.get("X-API-Key", "") == _API_KEY
 
 
+def _is_valid_run_id(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
 # ── Page routes ───────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -153,6 +184,8 @@ def index():
 
 @app.route("/run/<run_id>")
 def run_page(run_id: str):
+    if not _is_valid_run_id(run_id):
+        return render_template("index.html", error=f"Run {run_id!r} not found"), 404
     run = _engine.get_result(run_id)
     if run is None:
         return render_template("index.html", error=f"Run {run_id!r} not found"), 404
@@ -192,6 +225,7 @@ def api_atomics_technique(technique_id: str):
 # ── API: run test ─────────────────────────────────────────────────────────────
 
 @app.route("/api/run", methods=["POST"])
+@_limiter.limit("10/minute")
 def api_run():
     """
     Execute an atomic test.
@@ -224,7 +258,10 @@ def api_run():
     normalize       = bool(body.get("normalize", True))
     input_arguments = body.get("input_arguments") or {}
     timeout_raw     = body.get("timeout")
-    timeout         = int(timeout_raw) if timeout_raw is not None else None
+    try:
+        timeout = max(1, min(int(timeout_raw), 300)) if timeout_raw is not None else None
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "timeout must be an integer between 1 and 300"}), 400
 
     if not technique_id:
         return jsonify({"success": False, "error": "technique_id is required"}), 400
@@ -257,6 +294,7 @@ def api_run():
 # ── API: direct command execution ────────────────────────────────────────────
 
 @app.route("/execute", methods=["POST"])
+@_limiter.limit("10/minute")
 def execute_route():
     """
     Execute a command locally or on a remote host.
@@ -296,7 +334,10 @@ def execute_route():
     transport     = str(body.get("transport", "")).strip().lower()
     credential    = body.get("credential") or None
     timeout_raw   = body.get("timeout")
-    timeout       = int(timeout_raw) if timeout_raw is not None else 30
+    try:
+        timeout = max(1, min(int(timeout_raw), 300)) if timeout_raw is not None else 30
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "timeout must be an integer between 1 and 300"}), 400
     dry_run       = bool(body.get("dry_run", False))
 
     if not command_id:
@@ -354,6 +395,7 @@ def execute_route():
 # ── API: validate detection ───────────────────────────────────────────────────
 
 @app.route("/api/validate", methods=["POST"])
+@_limiter.limit("30/minute")
 def api_validate():
     """
     Validate a Sigma rule against events from a stored run.
@@ -406,9 +448,15 @@ def api_validate():
 # ── API: results list ─────────────────────────────────────────────────────────
 
 @app.route("/api/results")
+@_limiter.limit("60/minute")
 def api_results():
-    page         = max(1, int(request.args.get("page", 1)))
-    per_page     = max(1, min(200, int(request.args.get("per_page", 50))))
+    if not _check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        page     = max(1, int(request.args.get("page", 1)))
+        per_page = max(1, min(200, int(request.args.get("per_page", 50))))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "page and per_page must be integers"}), 400
     search       = request.args.get("search", "")
     technique_id = request.args.get("technique_id", "")
     result       = _engine.get_results(
@@ -420,7 +468,12 @@ def api_results():
 # ── API: single result ────────────────────────────────────────────────────────
 
 @app.route("/api/result/<run_id>")
+@_limiter.limit("60/minute")
 def api_result(run_id: str):
+    if not _check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
+    if not _is_valid_run_id(run_id):
+        return jsonify({"success": False, "error": "Invalid run_id format"}), 400
     run = _engine.get_result(run_id)
     if run is None:
         return jsonify({"success": False, "error": "Run not found"}), 404
@@ -428,9 +481,12 @@ def api_result(run_id: str):
 
 
 @app.route("/api/result/<run_id>", methods=["DELETE"])
+@_limiter.limit("20/minute")
 def api_result_delete(run_id: str):
     if not _check_api_key():
         return jsonify({"error": "unauthorized"}), 401
+    if not _is_valid_run_id(run_id):
+        return jsonify({"success": False, "error": "Invalid run_id format"}), 400
     deleted = _engine.delete_result(run_id)
     if not deleted:
         return jsonify({"success": False, "error": "Run not found"}), 404
@@ -440,7 +496,10 @@ def api_result_delete(run_id: str):
 # ── API: export run ───────────────────────────────────────────────────────────
 
 @app.route("/api/result/<run_id>/export")
+@_limiter.limit("30/minute")
 def api_export(run_id: str):
+    if not _is_valid_run_id(run_id):
+        return jsonify({"success": False, "error": "Invalid run_id format"}), 400
     fmt = request.args.get("format", "json").lower()
     run = _engine.get_result(run_id)
     if run is None:

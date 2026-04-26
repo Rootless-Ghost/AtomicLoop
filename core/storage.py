@@ -13,6 +13,7 @@ the Docker / Nebula Forge suite via the DATABASE_URL environment variable.
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import os
@@ -20,7 +21,7 @@ import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("atomicloop.storage")
 
@@ -43,6 +44,7 @@ class RunStorage:
             from psycopg2.pool import ThreadedConnectionPool
             self._pg_extras = psycopg2.extras
             self._pool = ThreadedConnectionPool(minconn=1, maxconn=10, dsn=url)
+            atexit.register(self.close)
             logger.info("Storage backend: PostgreSQL (%s)", url.split("@")[-1])
         else:
             self._lock = threading.Lock()
@@ -53,6 +55,21 @@ class RunStorage:
             self._sqlite_conn = conn
             self._ensure_schema()
             logger.info("Storage backend: SQLite (%s)", url)
+
+    def close(self) -> None:
+        """Release all pooled connections. Called automatically at process exit."""
+        if self._backend == "postgresql" and self._pool is not None:
+            try:
+                self._pool.closeall()
+                logger.info("PostgreSQL connection pool closed.")
+            except Exception as exc:
+                logger.warning("Error closing connection pool: %s", exc)
+        elif self._backend == "sqlite" and self._sqlite_conn is not None:
+            try:
+                self._sqlite_conn.close()
+                logger.info("SQLite connection closed.")
+            except Exception as exc:
+                logger.warning("Error closing SQLite connection: %s", exc)
 
     def _ensure_schema(self) -> None:
         """Create the runs table and indexes if they do not exist (SQLite only)."""
@@ -111,7 +128,7 @@ class RunStorage:
 
     def save_run(self, run: dict) -> dict:
         run_id = run.get("id") or str(uuid.uuid4())
-        now    = datetime.utcnow().isoformat() + "Z"
+        now    = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         detection_fired_raw = run.get("detection_fired")
         if detection_fired_raw is True:

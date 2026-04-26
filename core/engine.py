@@ -91,7 +91,7 @@ class AtomicEngine:
             Full run dict with execution results, events, and metadata.
         """
         # Safety gate
-        if not dry_run and not confirm:
+        if not dry_run and self.default_confirm and not confirm:
             return {
                 "success": False,
                 "error": (
@@ -176,7 +176,7 @@ class AtomicEngine:
                     "error": "Cleanup command integrity check failed for selected atomic test.",
                 }
 
-        executed_at = datetime.utcnow().isoformat() + "Z"
+        executed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Execute
         result = execute(

@@ -101,7 +101,9 @@ async function fetchRuns(page) {
     });
 
     try {
-        const resp = await fetch('/api/results?' + params);
+        const resp = await fetch('/api/results?' + params, {
+            headers: { 'X-API-Key': _API_KEY },
+        });
         const data = await resp.json();
         renderRuns(data, fired);
     } catch (err) {

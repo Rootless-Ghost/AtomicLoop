@@ -242,7 +242,7 @@ def execute(
             error=f"Unsupported executor type: {executor_type!r}",
         )
 
-    logger.info("Executing: executor=%s timeout=%ds cmd=%s", executor_type, timeout, command[:80])
+    logger.debug("Executing: executor=%s timeout=%ds cmd=%s", executor_type, timeout, command[:80])
     start = time.monotonic()
     timed_out = False
 

@@ -395,7 +395,7 @@ async function validateDetection() {
 
         const resp = await fetch('/api/validate', {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': _API_KEY },
             body:    JSON.stringify(body),
         });
         const data = await resp.json();
