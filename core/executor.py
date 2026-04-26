@@ -159,11 +159,13 @@ def _is_safe_command_text(command: str) -> bool:
     return True
 
 
-def _validate_atomic_guid(command: str, executor_type: str) -> str | None:
+def _lookup_canonical_command(command: str, executor_type: str) -> str | None:
     """
-    Look up the matching atomic test in ATOMICS and return its
-    auto_generated_guid only if it satisfies the canonical GUID format.
-    Returns None if no match is found or the stored GUID is malformed.
+    Use command only as a lookup key into ATOMICS.
+    Returns the command string read from ATOMICS — never the user-supplied value —
+    so that cmd_list is built from a registry-sourced string, breaking the taint
+    chain that CodeQL traces from user input to subprocess.run().
+    Returns None if no match or the stored GUID is malformed.
     """
     try:
         from .atomics import ATOMICS
@@ -174,12 +176,14 @@ def _validate_atomic_guid(command: str, executor_type: str) -> str | None:
         for test in technique.get("tests", []):
             if str(test.get("executor_type", "")).lower().strip() != et:
                 continue
+            if not _ATOMIC_GUID_RE.match(test.get("auto_generated_guid", "")):
+                continue
             test_cmd = test.get("command")
             cleanup_cmd = test.get("cleanup_command")
-            if command == test_cmd or (cleanup_cmd is not None and command == cleanup_cmd):
-                guid = test.get("auto_generated_guid", "")
-                if _ATOMIC_GUID_RE.match(guid):
-                    return guid
+            if command == test_cmd:
+                return test_cmd        # from ATOMICS, not from user input
+            if cleanup_cmd is not None and command == cleanup_cmd:
+                return cleanup_cmd     # from ATOMICS, not from user input
     return None
 
 
@@ -243,18 +247,19 @@ def execute(
     if env:
         proc_env.update(env)
 
-    cmd_list = _build_command(command, executor_type)
-    if cmd_list is None:
-        return ExecutionResult(
-            command=command,
-            error=f"Unsupported executor type: {executor_type!r}",
-        )
-
-    if _validate_atomic_guid(command, executor_type) is None:
+    canonical = _lookup_canonical_command(command, executor_type)
+    if canonical is None:
         logger.warning("Rejected command: GUID allowlist validation failed executor=%s", executor_type)
         return ExecutionResult(
             command=command,
             error="Command GUID failed allowlist validation.",
+        )
+
+    cmd_list = _build_command(canonical, executor_type)
+    if cmd_list is None:
+        return ExecutionResult(
+            command=command,
+            error=f"Unsupported executor type: {executor_type!r}",
         )
 
     logger.info("Executing: executor=%s timeout=%ds cmd=%s", executor_type, timeout, command[:80])

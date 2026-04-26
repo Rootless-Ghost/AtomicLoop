@@ -50,7 +50,7 @@ import re
 import subprocess
 import time
 
-from .executor import ExecutionResult, _is_allowed_atomic_command, _validate_atomic_guid  # noqa: PLC2701
+from .executor import ExecutionResult, _is_allowed_atomic_command, _lookup_canonical_command  # noqa: PLC2701
 
 logger = logging.getLogger("atomicloop.remote_executor")
 
@@ -148,26 +148,15 @@ def execute_remote_winrm(
         username_arg = str(credential.get("username", ""))
         password_arg = str(credential.get("password", ""))
 
-    # Enforce allowlist before embedding into PowerShell -Command payload.
-    if not _is_allowed_atomic_command(command):
-        return ExecutionResult(
-            command=command,
-            error="Command is not allowed by policy.",
-            duration_ms=0,
+    canonical = _lookup_canonical_command(command, executor_type)
+    if canonical is None:
+        logger.warning(
+            "WinRM rejected command: GUID allowlist validation failed executor=%s target=%s",
+            executor_type, target_host,
         )
-
-    # Resolve user input to a hard-coded allowed command string to avoid
-    # direct interpolation of untrusted data into a PowerShell script.
-    normalized_command = command.strip()
-    allowed_commands = {
-        normalized_command: normalized_command,
-    }
-    resolved_command = allowed_commands.get(normalized_command)
-    if not resolved_command:
         return ExecutionResult(
             command=command,
-            error="Command is not allowed by policy.",
-            duration_ms=0,
+            error="Command GUID failed allowlist validation.",
         )
 
     ps_script = (
@@ -180,7 +169,7 @@ def execute_remote_winrm(
         "} else { "
         "  $_s = New-PSSession -ComputerName $ComputerName; "
         "} "
-        f"Invoke-Command -Session $_s -ScriptBlock {{ {resolved_command} }}; "
+        f"Invoke-Command -Session $_s -ScriptBlock {{ {canonical} }}; "
         "Remove-PSSession -Session $_s"
     )
 
@@ -197,16 +186,6 @@ def execute_remote_winrm(
             "pwsh", "-NonInteractive", "-NoProfile", "-Command", ps_script,
             "-ComputerName", target_host, "-Username", username_arg, "-Password", password_arg,
         ]
-
-    if _validate_atomic_guid(command, executor_type) is None:
-        logger.warning(
-            "WinRM rejected command: GUID allowlist validation failed executor=%s target=%s",
-            executor_type, target_host,
-        )
-        return ExecutionResult(
-            command=command,
-            error="Command GUID failed allowlist validation.",
-        )
 
     logger.info(
         "WinRM remote exec: target=%s executor=%s timeout=%ds",
